@@ -31,9 +31,10 @@ class Package:
     releases: Dict[str, PackageRelease]
 
 
-NUMERIC_VERSION = re.compile(r"^(.*?)-([0-9.b]+)(-[^0-9].*)?$")
+NUMERIC_VERSION = re.compile(r"^(.*?)-([0-9][^-]+)(-.*)?$")
 
-
+# TODO itu-r-468-weighting-1.0.3.tar.gz
+# TODO uttt-0.3-1.tar.gz
 def guess_version(basename: str) -> Tuple[str, str]:
     """
     Returns (package name, version) or raises.
@@ -51,9 +52,9 @@ def guess_version(basename: str) -> Tuple[str, str]:
     return match.group(1), match.group(2)
 
 
-def parse_index(pkg: str) -> Package:
+def parse_index(pkg: str, fresh: bool = False) -> Package:
     package = Package(name=pkg, releases={})
-    with open(fetch(pkg)) as f:
+    with open(fetch(pkg, force=fresh)) as f:
         for match in ENTRY_RE.finditer(f.read()):
             fe = FileEntry(**match.groupdict())
             v = guess_version(fe.basename)[1]

@@ -24,7 +24,7 @@ def cache_dir(pkg: str) -> Path:
 SESSION = requests.Session()
 
 
-def fetch(pkg: str, filename=None, url=None) -> Path:
+def fetch(pkg: str, filename: str = None, url: str = None, force: bool = None) -> Path:
     """
     Fetch and return filename.
 
@@ -43,7 +43,7 @@ def fetch(pkg: str, filename=None, url=None) -> Path:
 
     output_file = output_dir / (filename or "index.html")
 
-    if not output_file.exists():
+    if force or not output_file.exists():
         with SESSION.get(url) as resp:
             tmp = f"{output_file}.{os.getpid()}"
             resp.raise_for_status()

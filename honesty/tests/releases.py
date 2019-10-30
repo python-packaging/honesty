@@ -22,6 +22,8 @@ WOAH_INDEX_CONTENTS = b"""\
 <!--SERIAL 5860225-->
 """
 
+LONG_NAME = "scipy-0.14.1rc1.dev_205726a-cp33-cp33m-macosx_10_6_intel.macosx_10_9_intel.macosx_10_9_x86_64.macosx_10_10_intel.macosx_10_10_x86_64.whl"
+
 
 class ReleasesTest(unittest.TestCase):
     @mock.patch("honesty.cache.fetch")
@@ -54,3 +56,5 @@ class ReleasesTest(unittest.TestCase):
         self.assertEqual(("foo", "0.1"), guess_version("foo-0.1-any-none.whl"))
         with self.assertRaises(ValueError):
             guess_version("foo.tar.gz")
+
+        self.assertEqual(("scipy", "0.14.1rc1.dev_205726a"), guess_version(LONG_NAME))
