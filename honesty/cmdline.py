@@ -3,7 +3,7 @@ import sys
 import click
 import pkg_resources
 
-from honesty.checker import run_checker
+from honesty.checker import is_pep517, run_checker
 from honesty.releases import parse_index
 
 
@@ -50,7 +50,27 @@ def check(verbose, fresh, package_name, version):
         sys.exit(rc)
 
 
+@click.command()
+@click.option("--verbose", "-v", is_flag=True, type=bool)
+@click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.argument("package_name")
+@click.argument("version", default="latest")
+def ispep517(verbose, fresh, package_name, version):
+    package = parse_index(package_name, fresh=fresh)
+    if version == "latest":
+        if not package.releases:
+            raise click.ClickException("No releases at all")
+        version = sorted(package.releases, key=pkg_resources.parse_version)[-1]
+
+    if verbose:
+        click.echo(f"check {package_name} {version}")
+
+    if not is_pep517(package, version, verbose=verbose):
+        sys.exit(1)
+
+
 cli.add_command(list)
 cli.add_command(check)
+cli.add_command(ispep517)
 if __name__ == "__main__":
     cli()

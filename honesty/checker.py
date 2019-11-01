@@ -119,6 +119,35 @@ def run_checker(package: Package, version: str, verbose: bool) -> None:
     return rc
 
 
+def is_pep517(package, version, verbose):
+    try:
+        rel = package.releases[version]
+    except KeyError:
+        raise click.ClickException(f"version={version} not available")
+
+    # Find *a* sdist
+    sdists = [f for f in rel.files if f.basename.endswith(SDIST_EXTENSIONS)]
+    if not sdists:
+        raise click.ClickException(f"{package.name} no sdists")
+
+    lp = fetch(pkg=package.name, filename=sdists[0].basename, url=sdists[0].url)
+
+    if str(lp).endswith(".tar.gz"):
+        archive = tarfile.open(str(lp), mode="r:gz")
+        for name in archive.getnames():
+            if name.endswith("pyproject.toml"):
+                click.echo(name)
+                return True
+    elif str(lp).endswith(ZIP_EXTENSIONS):
+        with zipfile.ZipFile(str(lp)) as archive:
+            for name in archive.namelist():
+                if name.endswith("pyproject.toml"):
+                    click.echo(name)
+                    return True
+    else:
+        raise click.ClickException("unknown sdist type")
+
+
 def shorten(subj: str, n=50):
     if len(subj) <= n:
         return subj
