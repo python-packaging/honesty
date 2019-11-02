@@ -108,33 +108,33 @@ def run_checker(package: Package, version: str, verbose: bool) -> int:
     return rc
 
 
-def is_pep517(package, version, verbose):
+def is_pep517(package: Package, version: str, verbose: bool) -> bool:
     try:
         rel = package.releases[version]
     except KeyError:
         raise click.ClickException(f"version={version} not available")
 
     # Find *a* sdist
-    sdists = [f for f in rel.files if f.basename.endswith(SDIST_EXTENSIONS)]
+    sdists = [f for f in rel.files if f.file_type == FileType.SDIST]
     if not sdists:
         raise click.ClickException(f"{package.name} no sdists")
 
     lp = fetch(pkg=package.name, filename=sdists[0].basename, url=sdists[0].url)
 
-    if str(lp).endswith(".tar.gz"):
-        archive = tarfile.open(str(lp), mode="r:gz")
-        for name in archive.getnames():
+    engine = arlib.ZipArchive if str(lp).endswith(ZIP_EXTENSIONS) else None
+    with arlib.open(lp, "r", engine=engine) as archive:
+        for name in archive.member_names:
+            # TODO for a couple of projects this is finding test fixtures, we
+            # should only be looking alongside the rootmost setup.py
             if name.endswith("pyproject.toml"):
-                click.echo(name)
-                return True
-    elif str(lp).endswith(ZIP_EXTENSIONS):
-        with zipfile.ZipFile(str(lp)) as archive:
-            for name in archive.namelist():
-                if name.endswith("pyproject.toml"):
-                    click.echo(name)
+                with archive.open_member(name, "rb") as buf:
+                    data = buf.read().replace(b"\r\n", b"\n")
+                if b"[build-system]" in data:
+                    click.echo(f"{package.name} build-system {name}")
                     return True
-    else:
-        raise click.ClickException("unknown sdist type")
+                else:
+                    click.echo(f"{package.name} has-toml {name}")
+    return False
 
 
 def shorten(subj: str, n=50):
