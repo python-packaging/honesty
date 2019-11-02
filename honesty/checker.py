@@ -13,6 +13,33 @@ from .releases import SDIST_EXTENSIONS, FileEntry, FileType, Package
 ZIP_EXTENSIONS = (".zip", ".egg", ".whl")
 
 
+# [path] = sha
+def archive_hashes(
+    archive_filename: Path, strip_top_level: bool = False
+) -> Dict[str, str]:
+    d: Dict[str, str] = {}
+    engine = (
+        arlib.ZipArchive if str(archive_filename).endswith(ZIP_EXTENSIONS) else None
+    )
+    with arlib.open(archive_filename, "r", engine=engine) as archive:
+        for name in archive.member_names:
+            if not name.endswith(".py"):
+                continue  #  skip for now
+
+            namekey = name
+            if strip_top_level:
+                namekey = name.split("/", 1)[-1]
+            if namekey.startswith("src/"):
+                namekey = namekey[4:]
+
+            with archive.open_member(name, "rb") as buf:
+                data = buf.read().replace(b"\r\n", b"\n")
+
+            sha = hashlib.sha1(data).hexdigest()
+            d[namekey] = sha
+    return d
+
+
 def run_checker(package: Package, version: str, verbose: bool) -> int:
     try:
         rel = package.releases[version]
@@ -36,74 +63,49 @@ def run_checker(package: Package, version: str, verbose: bool) -> int:
             )
             # TODO verify checksum
 
-    # [filename][sha] = set(archives)
-    paths_present: Dict[str, Dict[str, Set[str]]] = {}
-    # [sha] = last path
-    sdist_paths_present: Dict[str, str] = {}
-    # import pdb
-    # pdb.set_trace()
+    sdist_hashes: Dict[str, str] = {}
     for fe, lp in local_paths:
-        if fe.file_type == FileType.UNKNOWN:
-            continue
+        if fe.file_type == FileType.SDIST:
+            # assert not sdist_hashes # multiple sdists?
+            t0 = time.time()
+            sdist_hashes = archive_hashes(lp, True)
+            t1 = time.time()
+            print(f"{fe.basename} {t1-t0}")
 
-        is_sdist = fe.file_type == FileType.SDIST
-        engine = arlib.ZipArchive if str(lp).endswith(ZIP_EXTENSIONS) else None
-        with arlib.open(lp, "r", engine=engine) as archive:
-            for name in archive.member_names:
-                # archive.member_is_file is way too slow
-                if "." not in name.split("/")[-1]:
-                    continue
+    if verbose:
+        for k, v in sdist_hashes.items():
+            print(f"{k} {v}")
 
-                # strips prefix of <pkg>-<ver>/
-                namekey = name
-                if is_sdist and "/" in name:
-                    namekey = name.split("/", 1)[1]
-                    if namekey.startswith("src/"):
-                        namekey = namekey[4:]
-
-                if name.endswith(".py"):
-                    t0 = time.time()
-                    with archive.open_member(name, "rb") as buf:
-                        data = buf.read().replace(b"\r\n", b"\n")
-                    t1 = time.time()
-                    # print("Read", name, t1-t0)
-                    sha = hashlib.sha1(data).hexdigest()
-                    paths_present.setdefault(namekey, {}).setdefault(sha, set()).add(
-                        lp.name
-                    )
-                    if is_sdist:
-                        sdist_paths_present[sha] = namekey
-
+    # [message] = set(filenames)
+    messages: Dict[str, Set[str]] = {}
     rc = 0
-    for contained_path in sorted(paths_present):
-        if len(paths_present[contained_path]) != 1:
-            # different hashes
-            click.secho(f"  {contained_path} different hashes", fg="red")
-            if verbose:
-                for k, v in paths_present[contained_path].items():
-                    if k in sdist_paths_present:
-                        for f in v:
-                            click.secho(f"    {shorten(f)}: {k}", fg="yellow")
-                    else:
-                        for f in v:
-                            click.secho(f"    {shorten(f)}: {k}", fg="red")
-            rc |= 8
-        elif next(iter(paths_present[contained_path])) not in sdist_paths_present:
-            click.secho(f"  {contained_path} not in sdist", fg="red")
-            if verbose:
-                for k, v in paths_present[contained_path].items():
-                    for f in v:
-                        click.secho(f"    {shorten(f)}: {k}", fg="yellow")
-            rc |= 4
-        elif verbose:
-            click.secho(f"  {contained_path}: OK", fg="green")
+    for fe, lp in local_paths:
+        if fe.file_type in (FileType.BDIST_WHEEL, FileType.BDIST_EGG):
+            t0 = time.time()
+            this_hashes = archive_hashes(lp)
+            t1 = time.time()
+            print(f"{fe.basename} {t1-t0}")
+
+            msg = []
+            for k, h in sorted(this_hashes.items()):
+                if k not in sdist_hashes:
+                    msg.append(f"    {k} not in sdist")
+                    rc |= 4
+                elif h != sdist_hashes[k]:
+                    msg.append(f"    {k} differs from sdist {h}")
+                    rc |= 8
+
+            if msg:
+                messages.setdefault("\n".join(msg), set()).add(fe.basename)
 
     if rc == 0:
         click.secho(f"{package.name} {version} OK", fg="green")
     else:
-        # It's a little unusual to print this at the end, but otherwise we need
-        # to buffer messages.  Open to other ideas.
         click.secho(f"{package.name} {version} problems", fg="yellow")
+        for k, vm in messages.items():
+            for i in vm:
+                click.secho(f"  {i}", fg="red")
+            click.secho(k, fg="yellow")
 
     return rc
 
