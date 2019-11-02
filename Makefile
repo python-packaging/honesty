@@ -24,7 +24,7 @@ test:
 lint:
 	isort --recursive -y honesty setup.py
 	black honesty setup.py
-	mypy honesty
+	mypy --strict honesty
 
 .PHONY: release
 release:

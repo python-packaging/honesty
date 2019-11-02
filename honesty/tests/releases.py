@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 from honesty.releases import FileType, guess_file_type, guess_version, parse_index
@@ -27,7 +28,7 @@ LONG_NAME = "scipy-0.14.1rc1.dev_205726a-cp33-cp33m-macosx_10_6_intel.macosx_10_
 
 class ReleasesTest(unittest.TestCase):
     @mock.patch("honesty.cache.fetch")
-    def test_get_entries(self, mock_fetch):
+    def test_get_entries(self, mock_fetch: Any) -> None:
         with tempfile.NamedTemporaryFile(mode="wb") as f:
             f.write(WOAH_INDEX_CONTENTS)
             f.flush()
@@ -50,7 +51,7 @@ class ReleasesTest(unittest.TestCase):
                 v01.files[0].checksum,
             )
 
-    def test_guess_version(self):
+    def test_guess_version(self) -> None:
         self.assertEqual(("foo", "0.1"), guess_version("foo-0.1.tar.gz"))
         self.assertEqual(("foo", "0.1"), guess_version("foo-0.1-py3-none.whl"))
         self.assertEqual(("foo", "0.1"), guess_version("foo-0.1-any-none.whl"))
@@ -62,8 +63,9 @@ class ReleasesTest(unittest.TestCase):
             ("javatools", "1.4.0"),
             guess_version("javatools-1.4.0.macosx-10.14-x86_64.tar.gz"),
         )
+        self.assertEqual(("pypi", "2"), guess_version("pypi-2.tar.gz"))
 
-    def test_guess_file_type(self):
+    def test_guess_file_type(self) -> None:
         self.assertEqual(FileType.SDIST, guess_file_type("foo-0.1.tar.gz"))
         self.assertEqual(
             FileType.BDIST_WHEEL, guess_file_type("foo-0.1-manylinux1.whl")
@@ -78,3 +80,4 @@ class ReleasesTest(unittest.TestCase):
             FileType.BDIST_DUMB,
             guess_file_type("pyre-check-0.0.29-macosx_10_11_x86_64.tar.gz"),
         )
+        self.assertEqual(FileType.SDIST, guess_file_type("pypi-2.tar.gz"))

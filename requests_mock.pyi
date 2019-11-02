@@ -1,2 +1,2 @@
 class Adapter:
-    pass
+    def register_uri(self, method: str, url: str, content: bytes) -> None: ...

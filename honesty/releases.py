@@ -10,7 +10,7 @@ ENTRY_RE = re.compile(
     r'href="(?P<url>[^"#]+\/(?P<basename>[^#]+))#(?P<checksum>[^="]+=[a-f0-9]+)"'
 )
 NUMERIC_VERSION = re.compile(
-    r"^(?P<package>.*?)-(?P<version>[0-9][^-]+?)"
+    r"^(?P<package>.*?)-(?P<version>[0-9][^-]*?)"
     r"(?P<suffix>(?P<platform>\.macosx|\.linux)?-.*)?$"
 )
 
@@ -26,7 +26,7 @@ class FileType(enum.IntEnum):
     BDIST_DUMB = 4
 
 
-def guess_file_type(filename) -> FileType:
+def guess_file_type(filename: str) -> FileType:
     if filename.endswith(".egg"):
         return FileType.BDIST_EGG
     elif filename.endswith(".whl"):
@@ -34,7 +34,7 @@ def guess_file_type(filename) -> FileType:
     elif filename.endswith(SDIST_EXTENSIONS):
         filename = remove_suffix(filename)
         match = NUMERIC_VERSION.match(filename)
-        assert match is not None
+        assert match is not None, filename
         # bdist_dumb can't be easily discerned
         if match.group("platform"):
             return FileType.BDIST_DUMB
@@ -67,7 +67,7 @@ class Package:
     releases: Dict[str, PackageRelease]
 
 
-def remove_suffix(basename):
+def remove_suffix(basename: str) -> str:
     suffixes = [".egg", ".whl", ".zip", ".gz", ".bz2", ".tar"]
     for s in suffixes:
         if basename.endswith(s):

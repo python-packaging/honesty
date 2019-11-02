@@ -137,11 +137,11 @@ def is_pep517(package: Package, version: str, verbose: bool) -> bool:
     return False
 
 
-def shorten(subj: str, n=50):
+def shorten(subj: str, n: int = 50) -> str:
     if len(subj) <= n:
         return subj
     return subj[:22] + "..." + subj[-n + 22 + 3 :]
 
 
-def show_diff(a: List[str], b: List[str]):
+def show_diff(a: List[str], b: List[str]) -> None:
     click.echo("".join(difflib.unified_diff(a, b)))

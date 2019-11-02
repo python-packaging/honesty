@@ -25,7 +25,12 @@ def cache_dir(pkg: str) -> Path:
 SESSION = requests.Session()
 
 
-def fetch(pkg: str, filename: str = None, url: str = None, force: bool = None) -> Path:
+def fetch(
+    pkg: str,
+    filename: Optional[str] = None,
+    url: Optional[str] = None,
+    force: bool = False,
+) -> Path:
     """
     Fetch and return filename.
 

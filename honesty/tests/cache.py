@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 import requests
@@ -15,10 +16,12 @@ class CacheTest(unittest.TestCase):
     @mock.patch("honesty.cache.MIRROR_BASE", "mock://pypi.org/simple/")
     @mock.patch("honesty.cache.urllib.parse.uses_netloc", ["mock"])
     @mock.patch("honesty.cache.urllib.parse.uses_relative", ["mock"])
-    def test_fetch_caches(self, unused_mock_cache_path, unused_mock_session):
+    def test_fetch_caches(
+        self, unused_mock_cache_path: Any, unused_mock_session: Any
+    ) -> None:
         session = requests.Session()
         adapter = requests_mock.Adapter()
-        session.mount("mock", adapter)
+        session.mount("mock", adapter)  # type: ignore
         honesty.cache.SESSION = session
 
         adapter.register_uri(
