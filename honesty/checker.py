@@ -1,9 +1,8 @@
 import difflib
 import hashlib
-import tarfile
-import zipfile
 from typing import Dict, List, Set
 
+import arlib
 import click
 
 from .cache import fetch
@@ -41,9 +40,12 @@ def run_checker(package: Package, version: str, verbose: bool) -> None:
     sdist_paths_present: Dict[str, str] = {}
     for lp in local_paths:
         is_sdist = str(lp).endswith(SDIST_EXTENSIONS)
-        if str(lp).endswith(".tar.gz"):
-            archive = tarfile.open(str(lp), mode="r:gz")
-            for name in archive.getnames():
+        engine = arlib.ZipArchive if str(lp).endswith(ZIP_EXTENSIONS) else None
+        with arlib.open(lp, "r", engine=engine) as archive:
+            for name in archive.member_names:
+                if not archive.member_is_file(name):
+                    continue
+
                 # strips prefix of <pkg>-<ver>/
                 namekey = name
                 if is_sdist and "/" in name:
@@ -52,34 +54,14 @@ def run_checker(package: Package, version: str, verbose: bool) -> None:
                         namekey = namekey[4:]
 
                 if name.endswith(".py"):
-                    buf = archive.extractfile(name)
-                    data = buf.read().replace(b"\r\n", b"\n")
+                    with archive.open_member(name, "rb") as buf:
+                        data = buf.read().replace(b"\r\n", b"\n")
                     sha = hashlib.sha1(data).hexdigest()
                     paths_present.setdefault(namekey, {}).setdefault(sha, set()).add(
                         lp.name
                     )
                     if is_sdist:
                         sdist_paths_present[sha] = namekey
-        elif str(lp).endswith(ZIP_EXTENSIONS):
-            with zipfile.ZipFile(str(lp)) as archive:
-                for name in archive.namelist():
-                    # strips prefix of <pkg>-<ver>/
-                    namekey = name
-                    if is_sdist and "/" in name:
-                        namekey = name.split("/", 1)[1]
-                        if namekey.startswith("src/"):
-                            namekey = namekey[4:]
-
-                    if name.endswith(".py"):
-                        data = archive.read(name).replace(b"\r\n", b"\n")
-                        sha = hashlib.sha1(data).hexdigest()
-                        paths_present.setdefault(namekey, {}).setdefault(
-                            sha, set()
-                        ).add(lp.name)
-                        if is_sdist:
-                            sdist_paths_present[sha] = namekey
-        else:
-            click.secho(f"Warning: unknown type {lp}", fg="red")
 
     rc = 0
     if not sdist_paths_present:
