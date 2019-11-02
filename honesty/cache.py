@@ -4,6 +4,7 @@ Cache-related stuff.
 
 import os
 import re
+import urllib.parse
 from pathlib import Path
 from typing import List, Optional
 
@@ -37,6 +38,10 @@ def fetch(pkg: str, filename: str = None, url: str = None, force: bool = None) -
 
     if url is None:
         url = f"{MIRROR_BASE}{pkg}/{filename or ''}"
+    else:
+        # pypi simple gives full urls, but if your mirror gives relative ones,
+        # it's relative to the index page with /
+        url = urllib.parse.urljoin(f"{MIRROR_BASE}{pkg}/", url)
 
     output_dir = CACHE_PATH / cache_dir(pkg)
     output_dir.mkdir(parents=True, exist_ok=True)
