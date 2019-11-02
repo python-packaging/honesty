@@ -40,7 +40,7 @@ def guess_file_type(filename) -> FileType:
         elif match.group("suffix") and match.group("suffix").startswith("-macosx"):
             return FileType.BDIST_DUMB
         return FileType.SDIST
-    else:  # .exe?
+    else:  # .exe and .rpm at least
         return FileType.UNKNOWN
 
 

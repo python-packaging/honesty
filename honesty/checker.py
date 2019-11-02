@@ -42,6 +42,9 @@ def run_checker(package: Package, version: str, verbose: bool) -> None:
     # import pdb
     # pdb.set_trace()
     for fe, lp in local_paths:
+        if fe.file_type == FileType.UNKNOWN:
+            continue
+
         is_sdist = fe.file_type == FileType.SDIST
         engine = arlib.ZipArchive if str(lp).endswith(ZIP_EXTENSIONS) else None
         with arlib.open(lp, "r", engine=engine) as archive:
