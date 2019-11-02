@@ -1,6 +1,6 @@
-import time
 import difflib
 import hashlib
+import time
 from typing import Dict, List, Set
 
 import arlib
@@ -65,7 +65,7 @@ def run_checker(package: Package, version: str, verbose: bool) -> None:
                     with archive.open_member(name, "rb") as buf:
                         data = buf.read().replace(b"\r\n", b"\n")
                     t1 = time.time()
-                    #print("Read", name, t1-t0)
+                    # print("Read", name, t1-t0)
                     sha = hashlib.sha1(data).hexdigest()
                     paths_present.setdefault(namekey, {}).setdefault(sha, set()).add(
                         lp.name
