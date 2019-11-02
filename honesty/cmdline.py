@@ -3,7 +3,7 @@ import sys
 import click
 import pkg_resources
 
-from honesty.checker import is_pep517, run_checker
+from honesty.checker import has_nativemodules, is_pep517, run_checker
 from honesty.releases import parse_index
 
 
@@ -66,6 +66,25 @@ def ispep517(verbose: bool, fresh: bool, package_name: str, version: str) -> Non
         click.echo(f"check {package_name} {version}")
 
     if not is_pep517(package, version, verbose=verbose):
+        sys.exit(1)
+
+
+@cli.command()
+@click.option("--verbose", "-v", is_flag=True, type=bool)
+@click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.argument("package_name")
+@click.argument("version", default="latest")
+def native(verbose: bool, fresh: bool, package_name: str, version: str) -> None:
+    package = parse_index(package_name, fresh=fresh)
+    if version == "latest":
+        if not package.releases:
+            raise click.ClickException("No releases at all")
+        version = sorted(package.releases, key=pkg_resources.parse_version)[-1]
+
+    if verbose:
+        click.echo(f"check {package_name} {version}")
+
+    if has_nativemodules(package, version, verbose=verbose):
         sys.exit(1)
 
 

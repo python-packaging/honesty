@@ -137,6 +137,31 @@ def is_pep517(package: Package, version: str, verbose: bool) -> bool:
     return False
 
 
+def has_nativemodules(package: Package, version: str, verbose: bool) -> bool:
+    try:
+        rel = package.releases[version]
+    except KeyError:
+        raise click.ClickException(f"version={version} not available")
+
+    # Find *a* sdist
+    bdists = [f for f in rel.files if f.file_type == FileType.BDIST_WHEEL]
+    if not bdists:
+        raise click.ClickException(f"{package.name} no bdists")
+
+    lp = fetch(pkg=package.name, filename=bdists[0].basename, url=bdists[0].url)
+
+    engine = arlib.ZipArchive if str(lp).endswith(ZIP_EXTENSIONS) else None
+    with arlib.open(lp, "r", engine=engine) as archive:
+        for name in archive.member_names:
+            # TODO for a couple of projects this is finding test fixtures, we
+            # should only be looking alongside the rootmost setup.py
+            if name.endswith(".so") or name.endswith(".dll"):
+                click.echo(f"{package.name} has {name}")
+                return True
+
+    return False
+
+
 def shorten(subj: str, n: int = 50) -> str:
     if len(subj) <= n:
         return subj
