@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from honesty.releases import guess_version, parse_index
+from honesty.releases import FileType, guess_file_type, guess_version, parse_index
 
 WOAH_INDEX_CONTENTS = b"""\
 <!DOCTYPE html>
@@ -58,3 +58,23 @@ class ReleasesTest(unittest.TestCase):
             guess_version("foo.tar.gz")
 
         self.assertEqual(("scipy", "0.14.1rc1.dev_205726a"), guess_version(LONG_NAME))
+        self.assertEqual(
+            ("javatools", "1.4.0"),
+            guess_version("javatools-1.4.0.macosx-10.14-x86_64.tar.gz"),
+        )
+
+    def test_guess_file_type(self):
+        self.assertEqual(FileType.SDIST, guess_file_type("foo-0.1.tar.gz"))
+        self.assertEqual(
+            FileType.BDIST_WHEEL, guess_file_type("foo-0.1-manylinux1.whl")
+        )
+        self.assertEqual(FileType.BDIST_EGG, guess_file_type("foo-0.1.egg"))
+        self.assertEqual(
+            FileType.BDIST_DUMB,
+            guess_file_type("javatools-1.4.0.macosx-10.14-x86_64.tar.gz"),
+        )
+        self.assertEqual(FileType.UNKNOWN, guess_file_type("foo-0.1.exe"))
+        self.assertEqual(
+            FileType.BDIST_DUMB,
+            guess_file_type("pyre-check-0.0.29-macosx_10_11_x86_64.tar.gz"),
+        )

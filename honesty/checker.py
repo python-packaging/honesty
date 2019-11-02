@@ -1,3 +1,4 @@
+import time
 import difflib
 import hashlib
 from typing import Dict, List, Set
@@ -6,9 +7,8 @@ import arlib
 import click
 
 from .cache import fetch
-from .releases import Package
+from .releases import SDIST_EXTENSIONS, FileType, Package
 
-SDIST_EXTENSIONS = (".tar.gz", ".zip")
 ZIP_EXTENSIONS = (".zip", ".egg", ".whl")
 
 
@@ -18,32 +18,36 @@ def run_checker(package: Package, version: str, verbose: bool) -> None:
     except KeyError:
         raise click.ClickException(f"version={version} not available")
 
-    if len(rel.files) == 1:
-        if rel.files[0].basename.endswith(SDIST_EXTENSIONS):
-            click.secho(f"{package.name} {version} only sdist", fg="green")
-            return 0
-        else:
-            click.secho(
-                f"{package.name} {version} only bdist {rel.files[0].basename}", fg="red"
-            )
-            return 1
+    sdists = [f for f in rel.files if f.file_type == FileType.SDIST]
 
-    local_paths: List[Path] = []
+    if not sdists:
+        click.secho(f"{package.name} {version} no sdist", fg="red")
+        return 1
+    elif len(sdists) == len(rel.files):
+        click.secho(f"{package.name} {version} only sdist", fg="green")
+        return 0
+
+    local_paths: List[Tuple[FileEntry, Path]] = []
     with click.progressbar(rel.files) as bar:
         for f in bar:
-            local_paths.append(fetch(pkg=package.name, filename=f.basename, url=f.url))
+            local_paths.append(
+                (f, fetch(pkg=package.name, filename=f.basename, url=f.url))
+            )
             # TODO verify checksum
 
     # [filename][sha] = set(archives)
     paths_present: Dict[str, Dict[str, Set[str]]] = {}
     # [sha] = last path
     sdist_paths_present: Dict[str, str] = {}
-    for lp in local_paths:
-        is_sdist = str(lp).endswith(SDIST_EXTENSIONS)
+    # import pdb
+    # pdb.set_trace()
+    for fe, lp in local_paths:
+        is_sdist = fe.file_type == FileType.SDIST
         engine = arlib.ZipArchive if str(lp).endswith(ZIP_EXTENSIONS) else None
         with arlib.open(lp, "r", engine=engine) as archive:
             for name in archive.member_names:
-                if not archive.member_is_file(name):
+                # archive.member_is_file is way too slow
+                if "." not in name.split("/")[-1]:
                     continue
 
                 # strips prefix of <pkg>-<ver>/
@@ -54,8 +58,11 @@ def run_checker(package: Package, version: str, verbose: bool) -> None:
                         namekey = namekey[4:]
 
                 if name.endswith(".py"):
+                    t0 = time.time()
                     with archive.open_member(name, "rb") as buf:
                         data = buf.read().replace(b"\r\n", b"\n")
+                    t1 = time.time()
+                    #print("Read", name, t1-t0)
                     sha = hashlib.sha1(data).hexdigest()
                     paths_present.setdefault(namekey, {}).setdefault(sha, set()).add(
                         lp.name
@@ -64,10 +71,6 @@ def run_checker(package: Package, version: str, verbose: bool) -> None:
                         sdist_paths_present[sha] = namekey
 
     rc = 0
-    if not sdist_paths_present:
-        click.secho(f"{package.name} {version} No sdist present", fg="red")
-        return 1
-
     for contained_path in sorted(paths_present):
         if len(paths_present[contained_path]) != 1:
             # different hashes
