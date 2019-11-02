@@ -34,6 +34,7 @@ def guess_file_type(filename) -> FileType:
     elif filename.endswith(SDIST_EXTENSIONS):
         filename = remove_suffix(filename)
         match = NUMERIC_VERSION.match(filename)
+        assert match is not None
         # bdist_dumb can't be easily discerned
         if match.group("platform"):
             return FileType.BDIST_DUMB

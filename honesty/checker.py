@@ -1,18 +1,19 @@
 import difflib
 import hashlib
 import time
-from typing import Dict, List, Set
+from pathlib import Path
+from typing import Dict, List, Set, Tuple
 
 import arlib
 import click
 
 from .cache import fetch
-from .releases import SDIST_EXTENSIONS, FileType, Package
+from .releases import SDIST_EXTENSIONS, FileEntry, FileType, Package
 
 ZIP_EXTENSIONS = (".zip", ".egg", ".whl")
 
 
-def run_checker(package: Package, version: str, verbose: bool) -> None:
+def run_checker(package: Package, version: str, verbose: bool) -> int:
     try:
         rel = package.releases[version]
     except KeyError:
@@ -29,9 +30,9 @@ def run_checker(package: Package, version: str, verbose: bool) -> None:
 
     local_paths: List[Tuple[FileEntry, Path]] = []
     with click.progressbar(rel.files) as bar:
-        for f in bar:
+        for fe in bar:
             local_paths.append(
-                (f, fetch(pkg=package.name, filename=f.basename, url=f.url))
+                (fe, fetch(pkg=package.name, filename=fe.basename, url=fe.url))
             )
             # TODO verify checksum
 
