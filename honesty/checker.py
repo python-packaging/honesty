@@ -1,5 +1,6 @@
 import difflib
 import hashlib
+import os.path
 import time
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
@@ -7,37 +8,9 @@ from typing import Dict, List, Set, Tuple
 import arlib
 import click
 
+from .archive import archive_hashes, extract_and_get_names
 from .cache import fetch
 from .releases import SDIST_EXTENSIONS, FileEntry, FileType, Package
-
-ZIP_EXTENSIONS = (".zip", ".egg", ".whl")
-
-
-# [path] = sha
-def archive_hashes(
-    archive_filename: Path, strip_top_level: bool = False
-) -> Dict[str, str]:
-    d: Dict[str, str] = {}
-    engine = (
-        arlib.ZipArchive if str(archive_filename).endswith(ZIP_EXTENSIONS) else None
-    )
-    with arlib.open(archive_filename, "r", engine=engine) as archive:
-        for name in archive.member_names:
-            if not name.endswith(".py"):
-                continue  #  skip for now
-
-            namekey = name
-            if strip_top_level:
-                namekey = name.split("/", 1)[-1]
-            if namekey.startswith("src/"):
-                namekey = namekey[4:]
-
-            with archive.open_member(name, "rb") as buf:
-                data = buf.read().replace(b"\r\n", b"\n")
-
-            sha = hashlib.sha1(data).hexdigest()
-            d[namekey] = sha
-    return d
 
 
 def run_checker(package: Package, version: str, verbose: bool) -> int:
@@ -70,7 +43,8 @@ def run_checker(package: Package, version: str, verbose: bool) -> int:
             t0 = time.time()
             sdist_hashes = archive_hashes(lp, True)
             t1 = time.time()
-            print(f"{fe.basename} {t1-t0}")
+            if verbose:
+                print(f"{fe.basename} {t1-t0}")
 
     if verbose:
         for k, v in sdist_hashes.items():
@@ -84,11 +58,15 @@ def run_checker(package: Package, version: str, verbose: bool) -> int:
             t0 = time.time()
             this_hashes = archive_hashes(lp)
             t1 = time.time()
-            print(f"{fe.basename} {t1-t0}")
+            if verbose:
+                print(f"{fe.basename} {t1-t0}")
 
             msg = []
             for k, h in sorted(this_hashes.items()):
                 if k not in sdist_hashes:
+                    # Intentionally not including has here, because
+                    # scipy/__config__.py has a different hash in each one and
+                    # I want them to coalesce
                     msg.append(f"    {k} not in sdist")
                     rc |= 4
                 elif h != sdist_hashes[k]:
@@ -123,19 +101,18 @@ def is_pep517(package: Package, version: str, verbose: bool) -> bool:
 
     lp = fetch(pkg=package.name, filename=sdists[0].basename, url=sdists[0].url)
 
-    engine = arlib.ZipArchive if str(lp).endswith(ZIP_EXTENSIONS) else None
-    with arlib.open(lp, "r", engine=engine) as archive:
-        for name in archive.member_names:
-            # TODO for a couple of projects this is finding test fixtures, we
-            # should only be looking alongside the rootmost setup.py
-            if name.endswith("pyproject.toml"):
-                with archive.open_member(name, "rb") as buf:
-                    data = buf.read().replace(b"\r\n", b"\n")
-                if b"[build-system]" in data:
-                    click.echo(f"{package.name} build-system {name}")
-                    return True
-                else:
-                    click.echo(f"{package.name} has-toml {name}")
+    archive_root, names = extract_and_get_names(lp, strip_top_level=True)
+    for relname, srcname in names:
+        # TODO for a couple of projects this is finding test fixtures, we
+        # should only be looking alongside the rootmost setup.py
+        if srcname.endswith("pyproject.toml"):
+            with open(os.path.join(archive_root, relname), "rb") as buf:
+                data = buf.read().replace(b"\r\n", b"\n")
+            if b"[build-system]" in data:
+                click.echo(f"{package.name} build-system {relname}")
+                return True
+            else:
+                click.echo(f"{package.name} has-toml {relname}")
     return False
 
 
@@ -152,14 +129,13 @@ def has_nativemodules(package: Package, version: str, verbose: bool) -> bool:
 
     lp = fetch(pkg=package.name, filename=bdists[0].basename, url=bdists[0].url)
 
-    engine = arlib.ZipArchive if str(lp).endswith(ZIP_EXTENSIONS) else None
-    with arlib.open(lp, "r", engine=engine) as archive:
-        for name in archive.member_names:
-            # TODO for a couple of projects this is finding test fixtures, we
-            # should only be looking alongside the rootmost setup.py
-            if name.endswith(".so") or name.endswith(".dll"):
-                click.echo(f"{package.name} has {name}")
-                return True
+    archive_root, names = extract_and_get_names(lp, strip_top_level=False)
+    for relname, srcname in names:
+        # TODO for a couple of projects this is finding test fixtures, we
+        # should only be looking alongside the rootmost setup.py
+        if srcname.endswith(".so") or srcname.endswith(".dll"):
+            click.echo(f"{package.name} has {srcname}")
+            return True
 
     return False
 
