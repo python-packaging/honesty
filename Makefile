@@ -18,7 +18,7 @@ setup:
 test:
 	which python
 	python -m coverage run -m honesty.tests
-	python -m coverage report --fail-under=99 --omit='.venv/*,.tox/*' --show-missing
+	python -m coverage report --fail-under=90 --omit='.venv/*,.tox/*' --show-missing
 
 .PHONY: lint
 lint:

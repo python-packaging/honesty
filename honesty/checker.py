@@ -9,11 +9,11 @@ import arlib
 import click
 
 from .archive import archive_hashes, extract_and_get_names
-from .cache import fetch
+from .cache import Cache
 from .releases import SDIST_EXTENSIONS, FileEntry, FileType, Package
 
 
-def run_checker(package: Package, version: str, verbose: bool) -> int:
+def run_checker(package: Package, version: str, verbose: bool, cache: Cache) -> int:
     try:
         rel = package.releases[version]
     except KeyError:
@@ -31,9 +31,7 @@ def run_checker(package: Package, version: str, verbose: bool) -> int:
     local_paths: List[Tuple[FileEntry, Path]] = []
     with click.progressbar(rel.files) as bar:
         for fe in bar:
-            local_paths.append(
-                (fe, fetch(pkg=package.name, filename=fe.basename, url=fe.url))
-            )
+            local_paths.append((fe, cache.fetch(pkg=package.name, url=fe.url)))
             # TODO verify checksum
 
     sdist_hashes: Dict[str, str] = {}
@@ -88,7 +86,7 @@ def run_checker(package: Package, version: str, verbose: bool) -> int:
     return rc
 
 
-def is_pep517(package: Package, version: str, verbose: bool) -> bool:
+def is_pep517(package: Package, version: str, verbose: bool, cache: Cache) -> bool:
     try:
         rel = package.releases[version]
     except KeyError:
@@ -99,7 +97,7 @@ def is_pep517(package: Package, version: str, verbose: bool) -> bool:
     if not sdists:
         raise click.ClickException(f"{package.name} no sdists")
 
-    lp = fetch(pkg=package.name, filename=sdists[0].basename, url=sdists[0].url)
+    lp = cache.fetch(pkg=package.name, url=sdists[0].url)
 
     archive_root, names = extract_and_get_names(lp, strip_top_level=True)
     for relname, srcname in names:
@@ -116,7 +114,9 @@ def is_pep517(package: Package, version: str, verbose: bool) -> bool:
     return False
 
 
-def has_nativemodules(package: Package, version: str, verbose: bool) -> bool:
+def has_nativemodules(
+    package: Package, version: str, verbose: bool, cache: Cache
+) -> bool:
     try:
         rel = package.releases[version]
     except KeyError:
@@ -130,7 +130,7 @@ def has_nativemodules(package: Package, version: str, verbose: bool) -> bool:
     if verbose:
         click.echo(f"{package.name} {version} {bdists[0].basename}")
 
-    lp = fetch(pkg=package.name, filename=bdists[0].basename, url=bdists[0].url)
+    lp = cache.fetch(pkg=package.name, url=bdists[0].url)
 
     archive_root, names = extract_and_get_names(lp, strip_top_level=False)
     for relname, srcname in names:

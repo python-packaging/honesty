@@ -1,55 +1,85 @@
+import posixpath
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional, Tuple
 from unittest import mock
 
 import requests
-import requests_mock
 
-import honesty.cache
+from honesty.cache import Cache
+
+
+class AiohttpStreamMock:
+    def __init__(self, content: bytes):
+        self._content = content
+
+    # TODO async iterable[bytes]
+    async def iter_any(self) -> Any:
+        yield self._content
+
+
+class AiohttpResponseMock:
+    def __init__(self, content: bytes):
+        self.content = AiohttpStreamMock(content)
+
+    async def __aenter__(self) -> "AiohttpResponseMock":
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        pass
+
+
+class FakeCache:
+    def __init__(
+        self, path: str, url_to_contents: Dict[Tuple[str, Optional[str]], bytes]
+    ) -> None:
+        self.path: Path = Path(path)
+        self.url_to_contents = url_to_contents
+
+    async def async_fetch(self, package_name: str, url: Optional[str] = None) -> Path:
+        basename = posixpath.basename(url) if url else f"{package_name}_index.html"
+        with open(self.path / basename, "wb") as f:
+            f.write(self.url_to_contents[(package_name, url)])
+
+        return self.path / basename
 
 
 class CacheTest(unittest.TestCase):
-    @mock.patch("honesty.cache.CACHE_PATH")
-    @mock.patch("honesty.cache.SESSION")
-    @mock.patch("honesty.cache.MIRROR_BASE", "mock://pypi.org/simple/")
-    @mock.patch("honesty.cache.urllib.parse.uses_netloc", ["mock"])
-    @mock.patch("honesty.cache.urllib.parse.uses_relative", ["mock"])
-    def test_fetch_caches(
-        self, unused_mock_cache_path: Any, unused_mock_session: Any
-    ) -> None:
-        session = requests.Session()
-        adapter = requests_mock.Adapter()
-        session.mount("mock", adapter)  # type: ignore
-        honesty.cache.SESSION = session
-
-        adapter.register_uri(
-            "GET", "mock://pypi.org/simple/projectname/", content=b"foo"
-        )
-        adapter.register_uri("GET", "mock://example.com/other", content=b"other")
-        adapter.register_uri("GET", "mock://pypi.org/a/relpath", content=b"relpath")
+    def test_fetch_caches(self) -> None:
 
         d = tempfile.mkdtemp()
-        honesty.cache.CACHE_PATH = Path(d)
 
-        rv = honesty.cache.fetch("projectname")
-        self.assertTrue(rv.exists(), rv)
-        self.assertEqual(f"{d}/pr/oj/projectname/index.html", str(rv))
-        rv = honesty.cache.fetch("projectname")
-        self.assertEqual(f"{d}/pr/oj/projectname/index.html", str(rv))
-        # TODO mock_get.assert_called_once()
-        with rv.open() as f:
-            self.assertEqual("foo", f.read())
+        def get_side_effect(
+            url: str, raise_for_status: bool = False, timeout: Any = None
+        ) -> AiohttpResponseMock:
+            if url == "https://example.com/other":
+                return AiohttpResponseMock(b"other")
+            elif url == "https://pypi.org/a/relpath":
+                return AiohttpResponseMock(b"relpath")
+            elif url == "https://pypi.org/simple/projectname/":
+                return AiohttpResponseMock(b"foo")
 
-        # Absolute path url support
-        rv = honesty.cache.fetch(
-            "projectname", filename="1", url="mock://example.com/other"
-        )
-        with rv.open() as f:
-            self.assertEqual("other", f.read())
+            raise NotImplementedError(url)
 
-        # Relative path support
-        rv = honesty.cache.fetch("projectname", filename="2", url="../../a/relpath")
-        with rv.open() as f:
-            self.assertEqual("relpath", f.read())
+        with Cache(index_url="https://pypi.org/simple/", cache_dir=d) as cache:
+
+            with mock.patch.object(cache.session, "get", side_effect=get_side_effect):
+                rv = cache.fetch("projectname", url=None)
+                self.assertTrue(rv.exists(), rv)
+                self.assertEqual(f"{d}/pr/oj/projectname/index.html", str(rv))
+                rv = cache.fetch("projectname", url=None)
+                self.assertEqual(f"{d}/pr/oj/projectname/index.html", str(rv))
+                # TODO mock_get.assert_called_once()
+                with rv.open() as f:
+                    self.assertEqual("foo", f.read())
+
+                # Absolute path url support
+                rv = cache.fetch("projectname", url="https://example.com/other")
+                with rv.open() as f:
+                    self.assertEqual("other", f.read())
+
+                # Relative path support
+                rv = cache.fetch("projectname", url="../../a/relpath")
+                with rv.open() as f:
+                    self.assertEqual("relpath", f.read())

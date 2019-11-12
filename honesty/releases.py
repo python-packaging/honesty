@@ -1,9 +1,10 @@
+import asyncio
 import enum
 import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from .cache import fetch
+from .cache import Cache
 
 # Apologies in advance, "parsing" html via regex
 ENTRY_RE = re.compile(
@@ -97,9 +98,15 @@ def guess_version(basename: str) -> Tuple[str, str]:
     return match.group(1), match.group(2)
 
 
-def parse_index(pkg: str, fresh: bool = False, strict: bool = False) -> Package:
+def parse_index(pkg: str, cache: Cache, strict: bool = False) -> Package:
+    loop = asyncio.get_event_loop()
+    package: Package = loop.run_until_complete(async_parse_index(pkg, cache, strict))
+    return package
+
+
+async def async_parse_index(pkg: str, cache: Cache, strict: bool = False) -> Package:
     package = Package(name=pkg, releases={})
-    with open(fetch(pkg, force=fresh)) as f:
+    with open(await cache.async_fetch(pkg, url=None)) as f:
         for match in ENTRY_RE.finditer(f.read()):
             # TODO guess_version can also raise this, but they currently use the
             # same regex; this should get parsed out once maybe in a method on

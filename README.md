@@ -8,12 +8,13 @@ for some of the obvious ways that packages might be tampered with.
 
 ```
 honesty list <package name>
-honesty check <package name> [version|"*"] [--verbose]
+honesty check <package name>[==version|==*] [--verbose]
+honesty download <package name>[==version|==*] [--dest=some-path/]
 ```
 
 It will store a package cache by default under `~/.cache/honesty/pypi` but you
 can change that with `HONESTY_CACHE` env var.  If you have a local bandersnatch,
-specify `HONESTY_MIRROR_BASE` to your `/simple/` url.
+specify `HONESTY_INDEX_URL` to your `/simple/` url.
 
 
 # Exit Status

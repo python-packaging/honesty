@@ -1,3 +1,4 @@
+aiohttp==3.6.2
 arlib==0.0.4
 click==7.0
 dataclasses==0.7 ; python_version < '3.7'

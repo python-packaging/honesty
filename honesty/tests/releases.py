@@ -1,3 +1,4 @@
+import posixpath
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +12,7 @@ from honesty.releases import (
     guess_version,
     parse_index,
 )
+from honesty.tests.cache import FakeCache
 
 WOAH_INDEX_CONTENTS = b"""\
 <!DOCTYPE html>
@@ -33,14 +35,10 @@ LONG_NAME = "scipy-0.14.1rc1.dev_205726a-cp33-cp33m-macosx_10_6_intel.macosx_10_
 
 
 class ReleasesTest(unittest.TestCase):
-    @mock.patch("honesty.cache.fetch")
-    def test_get_entries(self, mock_fetch: Any) -> None:
-        with tempfile.NamedTemporaryFile(mode="wb") as f:
-            f.write(WOAH_INDEX_CONTENTS)
-            f.flush()
-            mock_fetch.return_value = Path(f.name)
-
-            pkg = parse_index("woah")
+    def test_get_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            c = FakeCache(d, {("woah", None): WOAH_INDEX_CONTENTS})
+            pkg = parse_index("woah", c)  # type: ignore
 
         self.assertEqual("woah", pkg.name)
         self.assertEqual(2, len(pkg.releases))
