@@ -1,7 +1,8 @@
+import fnmatch
 import hashlib
 import os.path
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 import arlib
 
@@ -9,7 +10,9 @@ ZIP_EXTENSIONS = (".zip", ".egg", ".whl")
 
 
 def extract_and_get_names(
-    archive_filename: Path, strip_top_level: bool = False
+    archive_filename: Path,
+    strip_top_level: bool = False,
+    patterns: Iterable[str] = ("*.py",),
 ) -> Tuple[str, List[Tuple[str, str]]]:
     cache_path = os.path.expanduser(
         os.environ.get("HONESTY_EXTDIR", "~/.cache/honesty/ext")
@@ -30,7 +33,7 @@ def extract_and_get_names(
     # TODO figure out the right level of parallelism and/or use cfv
     for dirpath, dirnames, filenames in os.walk(archive_root):
         for name in filenames:
-            if not name.endswith(".py"):
+            if not any(fnmatch.fnmatch(name, p) for p in patterns):
                 continue  #  skip for now
 
             relname = os.path.join(dirpath[len(archive_root) + 1 :], name)

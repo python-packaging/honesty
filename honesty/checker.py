@@ -99,7 +99,9 @@ def is_pep517(package: Package, version: str, verbose: bool, cache: Cache) -> bo
 
     lp = cache.fetch(pkg=package.name, url=sdists[0].url)
 
-    archive_root, names = extract_and_get_names(lp, strip_top_level=True)
+    archive_root, names = extract_and_get_names(
+        lp, strip_top_level=True, patterns=("pyproject.toml",)
+    )
     for relname, srcname in names:
         # TODO for a couple of projects this is finding test fixtures, we
         # should only be looking alongside the rootmost setup.py
@@ -132,7 +134,9 @@ def has_nativemodules(
 
     lp = cache.fetch(pkg=package.name, url=bdists[0].url)
 
-    archive_root, names = extract_and_get_names(lp, strip_top_level=False)
+    archive_root, names = extract_and_get_names(
+        lp, strip_top_level=False, patterns=("*.so", "*.dll")
+    )
     for relname, srcname in names:
         # TODO for a couple of projects this is finding test fixtures, we
         # should only be looking alongside the rootmost setup.py
