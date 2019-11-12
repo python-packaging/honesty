@@ -127,6 +127,9 @@ def has_nativemodules(package: Package, version: str, verbose: bool) -> bool:
     if not bdists:
         raise click.ClickException(f"{package.name} no bdists")
 
+    if verbose:
+        click.echo(f"{package.name} {version} {bdists[0].basename}")
+
     lp = fetch(pkg=package.name, filename=bdists[0].basename, url=bdists[0].url)
 
     archive_root, names = extract_and_get_names(lp, strip_top_level=False)

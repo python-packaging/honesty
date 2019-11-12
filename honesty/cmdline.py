@@ -28,10 +28,11 @@ def list(package_name: str) -> None:
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
 @click.argument("package_name")
-@click.argument("version", default="latest")
-def check(verbose: bool, fresh: bool, package_name: str, version: str) -> None:
+def check(verbose: bool, fresh: bool, package_name: str) -> None:
+    package_name, _, version = package_name.partition("==")
     package = parse_index(package_name, fresh=fresh)
-    if version == "latest":
+    if not version:
+        # assume latest
         if not package.releases:
             raise click.ClickException("No releases at all")
         version = sorted(package.releases, key=pkg_resources.parse_version)[-1]
@@ -54,10 +55,10 @@ def check(verbose: bool, fresh: bool, package_name: str, version: str) -> None:
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
 @click.argument("package_name")
-@click.argument("version", default="latest")
-def ispep517(verbose: bool, fresh: bool, package_name: str, version: str) -> None:
+def ispep517(verbose: bool, fresh: bool, package_name: str) -> None:
+    package_name, _, version = package_name.partition("==")
     package = parse_index(package_name, fresh=fresh)
-    if version == "latest":
+    if not version:
         if not package.releases:
             raise click.ClickException("No releases at all")
         version = sorted(package.releases, key=pkg_resources.parse_version)[-1]
@@ -65,18 +66,23 @@ def ispep517(verbose: bool, fresh: bool, package_name: str, version: str) -> Non
     if verbose:
         click.echo(f"check {package_name} {version}")
 
-    if not is_pep517(package, version, verbose=verbose):
-        sys.exit(1)
+    rc = 0
+    if version == "*":
+        for v in sorted(package.releases, key=pkg_resources.parse_version):
+            rc |= is_pep517(package, v, verbose=verbose)
+    else:
+        rc |= is_pep517(package, version, verbose=verbose)
+    sys.exit(rc)
 
 
 @cli.command()
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
 @click.argument("package_name")
-@click.argument("version", default="latest")
-def native(verbose: bool, fresh: bool, package_name: str, version: str) -> None:
+def native(verbose: bool, fresh: bool, package_name: str) -> None:
+    package_name, _, version = package_name.partition("==")
     package = parse_index(package_name, fresh=fresh)
-    if version == "latest":
+    if not version:
         if not package.releases:
             raise click.ClickException("No releases at all")
         version = sorted(package.releases, key=pkg_resources.parse_version)[-1]
@@ -84,8 +90,13 @@ def native(verbose: bool, fresh: bool, package_name: str, version: str) -> None:
     if verbose:
         click.echo(f"check {package_name} {version}")
 
-    if has_nativemodules(package, version, verbose=verbose):
-        sys.exit(1)
+    rc = 0
+    if version == "*":
+        for v in sorted(package.releases, key=pkg_resources.parse_version):
+            rc |= has_nativemodules(package, v, verbose=verbose)
+    else:
+        rc |= has_nativemodules(package, version, verbose=verbose)
+    sys.exit(rc)
 
 
 if __name__ == "__main__":
