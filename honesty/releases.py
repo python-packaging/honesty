@@ -26,6 +26,10 @@ class FileType(enum.IntEnum):
     BDIST_DUMB = 4
 
 
+class UnexpectedFilename(Exception):
+    pass
+
+
 def guess_file_type(filename: str) -> FileType:
     if filename.endswith(".egg"):
         return FileType.BDIST_EGG
@@ -34,7 +38,9 @@ def guess_file_type(filename: str) -> FileType:
     elif filename.endswith(SDIST_EXTENSIONS):
         filename = remove_suffix(filename)
         match = NUMERIC_VERSION.match(filename)
-        assert match is not None, filename
+        # Some oddly-named files are not likely to be loaded by pip either.
+        if match is None:
+            raise UnexpectedFilename(filename)
         # bdist_dumb can't be easily discerned
         if match.group("platform"):
             return FileType.BDIST_DUMB
@@ -87,17 +93,25 @@ def guess_version(basename: str) -> Tuple[str, str]:
 
     match = NUMERIC_VERSION.match(basename)
     if not match:
-        raise ValueError("Could not parse version", basename)
+        raise UnexpectedFilename(basename)
     return match.group(1), match.group(2)
 
 
-def parse_index(pkg: str, fresh: bool = False) -> Package:
+def parse_index(pkg: str, fresh: bool = False, strict: bool = False) -> Package:
     package = Package(name=pkg, releases={})
     with open(fetch(pkg, force=fresh)) as f:
         for match in ENTRY_RE.finditer(f.read()):
-            fe = FileEntry(
-                file_type=guess_file_type(match.group("basename")), **match.groupdict()
-            )
+            # TODO guess_version can also raise this, but they currently use the
+            # same regex; this should get parsed out once maybe in a method on
+            # FileEntry.
+            try:
+                file_type = guess_file_type(match.group("basename"))
+            except UnexpectedFilename:
+                if not strict:
+                    continue
+                raise
+
+            fe = FileEntry(file_type=file_type, **match.groupdict())
             v = guess_version(fe.basename)[1]
             if v not in package.releases:
                 package.releases[v] = PackageRelease(version=v, files=[])

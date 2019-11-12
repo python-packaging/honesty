@@ -4,7 +4,13 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
-from honesty.releases import FileType, guess_file_type, guess_version, parse_index
+from honesty.releases import (
+    FileType,
+    UnexpectedFilename,
+    guess_file_type,
+    guess_version,
+    parse_index,
+)
 
 WOAH_INDEX_CONTENTS = b"""\
 <!DOCTYPE html>
@@ -35,27 +41,28 @@ class ReleasesTest(unittest.TestCase):
             mock_fetch.return_value = Path(f.name)
 
             pkg = parse_index("woah")
-            self.assertEqual("woah", pkg.name)
-            self.assertEqual(2, len(pkg.releases))
 
-            v01 = pkg.releases["0.1"]
-            self.assertEqual(2, len(v01.files))
+        self.assertEqual("woah", pkg.name)
+        self.assertEqual(2, len(pkg.releases))
 
-            self.assertEqual(
-                "https://files.pythonhosted.org/packages/69/c9/a9951fcb2e706dd14cfc5d57a33eadc38a2b7477c82c12c229de5f6115db/woah-0.1-py3-none-any.whl",
-                v01.files[0].url,
-            )
-            self.assertEqual("woah-0.1-py3-none-any.whl", v01.files[0].basename)
-            self.assertEqual(
-                "sha256=e705573ea8a88ec772174deea6a80c79f1e8b7e96130e27eee14b21d63f4e7f8",
-                v01.files[0].checksum,
-            )
+        v01 = pkg.releases["0.1"]
+        self.assertEqual(2, len(v01.files))
+
+        self.assertEqual(
+            "https://files.pythonhosted.org/packages/69/c9/a9951fcb2e706dd14cfc5d57a33eadc38a2b7477c82c12c229de5f6115db/woah-0.1-py3-none-any.whl",
+            v01.files[0].url,
+        )
+        self.assertEqual("woah-0.1-py3-none-any.whl", v01.files[0].basename)
+        self.assertEqual(
+            "sha256=e705573ea8a88ec772174deea6a80c79f1e8b7e96130e27eee14b21d63f4e7f8",
+            v01.files[0].checksum,
+        )
 
     def test_guess_version(self) -> None:
         self.assertEqual(("foo", "0.1"), guess_version("foo-0.1.tar.gz"))
         self.assertEqual(("foo", "0.1"), guess_version("foo-0.1-py3-none.whl"))
         self.assertEqual(("foo", "0.1"), guess_version("foo-0.1-any-none.whl"))
-        with self.assertRaises(ValueError):
+        with self.assertRaises(UnexpectedFilename):
             guess_version("foo.tar.gz")
 
         self.assertEqual(("scipy", "0.14.1rc1.dev_205726a"), guess_version(LONG_NAME))
@@ -81,3 +88,5 @@ class ReleasesTest(unittest.TestCase):
             guess_file_type("pyre-check-0.0.29-macosx_10_11_x86_64.tar.gz"),
         )
         self.assertEqual(FileType.SDIST, guess_file_type("pypi-2.tar.gz"))
+        with self.assertRaises(UnexpectedFilename):
+            guess_file_type("ibm_db.tar.gz")
