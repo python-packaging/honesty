@@ -7,3 +7,4 @@ build
 dist
 *.txt
 .mypy_cache
+.python-version
