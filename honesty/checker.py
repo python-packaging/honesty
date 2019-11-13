@@ -5,7 +5,6 @@ import time
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
-import arlib
 import click
 
 from .archive import archive_hashes, extract_and_get_names

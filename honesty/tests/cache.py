@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from unittest import mock
 
-import requests
-
 from honesty.cache import Cache
 
 

@@ -30,5 +30,10 @@ setup(
     license="Apache 2.0",
     packages=find_packages(),
     python_requires=">=3.6",
-    entry_points={"console_scripts": ["honesty = honesty.cmdline:main"]},
+    entry_points={"console_scripts": ["honesty = honesty.cmdline:cli"]},
+    install_requires=[
+        "aiohttp >= 3.6",
+        "click >= 7.0",
+        "dataclasses >= 0.7; python_version < '3.7'",
+    ],
 )

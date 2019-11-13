@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 import aiohttp
-import requests
 
 
 def cache_dir(pkg: str) -> Path:
