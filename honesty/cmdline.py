@@ -7,6 +7,7 @@ from typing import Any, List, Optional
 import click
 import pkg_resources
 
+from honesty.__version__ import __version__
 from honesty.api import async_download_many
 from honesty.cache import Cache
 from honesty.checker import has_nativemodules, is_pep517, run_checker
@@ -24,6 +25,7 @@ def wrap_async(coro: Any) -> Any:
 
 
 @click.group()
+@click.version_option(__version__, prog_name="honesty")
 def cli() -> None:
     pass
 
