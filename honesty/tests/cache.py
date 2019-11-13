@@ -1,3 +1,4 @@
+import asyncio
 import posixpath
 import tempfile
 import unittest
@@ -9,7 +10,7 @@ from honesty.cache import Cache
 
 
 class AiohttpStreamMock:
-    def __init__(self, content: bytes):
+    def __init__(self, content: bytes) -> None:
         self._content = content
 
     # TODO async iterable[bytes]
@@ -18,7 +19,7 @@ class AiohttpStreamMock:
 
 
 class AiohttpResponseMock:
-    def __init__(self, content: bytes):
+    def __init__(self, content: bytes) -> None:
         self.content = AiohttpStreamMock(content)
 
     async def __aenter__(self) -> "AiohttpResponseMock":
@@ -58,7 +59,7 @@ class CacheTest(unittest.TestCase):
             elif url == "https://pypi.org/simple/projectname/":
                 return AiohttpResponseMock(b"foo")
 
-            raise NotImplementedError(url)
+            raise NotImplementedError(url)  # pragma: no cover
 
         with Cache(index_url="https://pypi.org/simple/", cache_dir=d) as cache:
 
@@ -81,3 +82,35 @@ class CacheTest(unittest.TestCase):
                 rv = cache.fetch("projectname", url="../../a/relpath")
                 with rv.open() as f:
                     self.assertEqual("relpath", f.read())
+
+    def test_cache_defaults(self) -> None:
+        with Cache() as cache:
+            self.assertEqual(
+                Path("~/.cache/honesty/pypi").expanduser(), cache.cache_path
+            )
+            self.assertEqual("https://pypi.org/simple/", cache.index_url)
+
+    @mock.patch("honesty.cache.os.environ.get")
+    def test_cache_env_vars(self, mock_get: Any) -> None:
+        mock_get.side_effect = {
+            "HONESTY_CACHE": "/tmp",
+            "HONESTY_INDEX_URL": "https://example.com/foo",
+        }.get
+        with Cache() as cache:
+            self.assertEqual(Path("/tmp"), cache.cache_path)
+            self.assertEqual("https://example.com/foo/", cache.index_url)
+
+    def test_cache_invalid(self) -> None:
+        with Cache() as cache:
+            with self.assertRaises(NotImplementedError):
+                # I no longer remember which project triggers this; in theory
+                # all non-[a-z0-9-] should have been canonicalized away already.
+                cache.fetch("pb&amp;j", url=None)
+
+    def test_aenter(self) -> None:
+        async def inner() -> None:
+            async with Cache() as cache:
+                pass
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(inner())

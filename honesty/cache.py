@@ -33,12 +33,12 @@ class Cache:
     ) -> None:
         if not cache_dir:
             cache_dir = os.environ.get("HONESTY_CACHE", DEFAULT_CACHE_DIR)
-        assert isinstance(cache_dir, str)
+        assert isinstance(cache_dir, str), cache_dir
         self.cache_path = Path(cache_dir).expanduser()
 
         if not index_url:
             index_url = os.environ.get("HONESTY_INDEX_URL", DEFAULT_HONESTY_INDEX_URL)
-        assert isinstance(index_url, str)
+        assert isinstance(index_url, str), index_url
         if not index_url.endswith("/"):
             # in a browser, this would be a redirect; we don't know that here.
             index_url += "/"
@@ -66,7 +66,7 @@ class Cache:
         # Because parse_index doesn't understand entities, there are some urls
         # that we currently get that we shouldn't bother fetching.
         if "&" in pkg or "#" in pkg:
-            raise NotImplemented("parse_index does not handle entities yet")
+            raise NotImplementedError("parse_index does not handle entities yet")
 
         pkg_url = urllib.parse.urljoin(self.index_url, f"{pkg}/")
         if url is None:

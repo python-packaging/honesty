@@ -56,6 +56,26 @@ class ReleasesTest(unittest.TestCase):
             v01.files[0].checksum,
         )
 
+    def test_strict(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            c = FakeCache(
+                d, {("woah", None): WOAH_INDEX_CONTENTS.replace(b"woah-0.1", b"woah")}
+            )
+            with self.assertRaises(UnexpectedFilename):
+                pkg = parse_index("woah", c, strict=True)  # type: ignore
+
+    def test_non_strict(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            c = FakeCache(
+                d, {("woah", None): WOAH_INDEX_CONTENTS.replace(b"woah-0.1", b"woah")}
+            )
+            pkg = parse_index("woah", c, strict=False)  # type: ignore
+
+        self.assertEqual(1, len(pkg.releases))
+
+        v02 = pkg.releases["0.2"]
+        self.assertEqual(2, len(v02.files))
+
     def test_guess_version(self) -> None:
         self.assertEqual(("foo", "0.1"), guess_version("foo-0.1.tar.gz"))
         self.assertEqual(("foo", "0.1"), guess_version("foo-0.1-py3-none.whl"))
