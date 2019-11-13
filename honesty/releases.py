@@ -2,7 +2,7 @@ import asyncio
 import enum
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Match, Optional, Tuple
 
 from .cache import Cache
 
@@ -58,8 +58,17 @@ class FileEntry:
     basename: str  # foo-1.0.tgz
     checksum: str  # 'sha256=<foo>'
     file_type: FileType
+    version: str  # TODO: better type
     requires_python: Optional[str] = None  # '&gt;=3.6'
     # TODO extract upload date?
+
+    @classmethod
+    def from_entry_match(cls, match: Match[Any]) -> "FileEntry":
+        d = match.groupdict()
+        d["file_type"] = guess_file_type(d["basename"])
+        d["version"] = guess_version(d["basename"])[1]
+        obj = cls(**d)
+        return obj
 
 
 @dataclass
@@ -112,14 +121,13 @@ async def async_parse_index(pkg: str, cache: Cache, strict: bool = False) -> Pac
             # same regex; this should get parsed out once maybe in a method on
             # FileEntry.
             try:
-                file_type = guess_file_type(match.group("basename"))
+                fe = FileEntry.from_entry_match(match)
             except UnexpectedFilename:
                 if not strict:
                     continue
                 raise
 
-            fe = FileEntry(file_type=file_type, **match.groupdict())
-            v = guess_version(fe.basename)[1]
+            v = fe.version
             if v not in package.releases:
                 package.releases[v] = PackageRelease(version=v, files=[])
             package.releases[v].files.append(fe)
