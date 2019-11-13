@@ -1,10 +1,9 @@
 import fnmatch
 import hashlib
 import os.path
+import shutil
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
-
-import arlib
 
 ZIP_EXTENSIONS = (".zip", ".egg", ".whl")
 
@@ -19,11 +18,9 @@ def extract_and_get_names(
     )
     archive_root = os.path.join(cache_path, archive_filename.name)
     if not os.path.exists(archive_root + ".done"):
-        engine = (
-            arlib.ZipArchive if str(archive_filename).endswith(ZIP_EXTENSIONS) else None
-        )
-        with arlib.open(archive_filename, "r", engine=engine) as archive:
-            archive.extract(path=archive_root)
+        format = "zip" if str(archive_filename).endswith(ZIP_EXTENSIONS) else None
+        # mypy-fixme: arg 1 expects str, not Path
+        shutil.unpack_archive(archive_filename.as_posix(), archive_root, format)
 
     with open(archive_root + ".done", "w"):
         pass
