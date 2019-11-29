@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import os.path
 import shutil
 import sys
 from pathlib import Path
@@ -208,14 +209,18 @@ async def extract(
             lp, strip_top_level=True, patterns=("*.*",)
         )
 
+        subdirs = tuple(Path(archive_root).iterdir())
         if dest:
-            shutil.copytree(archive_root, dest)
+            for subdir in subdirs:
+                shutil.copytree(subdir, Path(dest, subdir.name))
         else:
             dest = archive_root
 
-        subdirs = tuple(Path(dest).iterdir())
+        # Try to be helpful in the common case that there's a top-level
+        # directory by itself.  Specifying a non-empty dest makes the fallback
+        # less useful.
         if len(subdirs) == 1:
-            print(subdirs[0].as_posix())
+            print(os.path.join(dest, subdirs[0].name))
         else:
             print(dest)
 
