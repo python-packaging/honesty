@@ -1,4 +1,5 @@
 import os
+import os.path
 import shutil
 import tempfile
 import unittest
@@ -50,11 +51,17 @@ class ArchiveTest(unittest.TestCase):
                     # We didn't specify strip_top_level so these are both as in
                     # archive.
                     self.assertEqual(
-                        {"foo-0.1/setup.py", "foo-0.1/src/proj/__init__.py"},
+                        {
+                            os.path.join("foo-0.1", "setup.py"),
+                            os.path.join("foo-0.1", "src", "proj", "__init__.py"),
+                        },
                         {n[1] for n in names},
                     )
                     self.assertEqual(
-                        {"foo-0.1/setup.py", "foo-0.1/src/proj/__init__.py"},
+                        {
+                            os.path.join("foo-0.1", "setup.py"),
+                            os.path.join("foo-0.1", "src", "proj", "__init__.py"),
+                        },
                         {n[0] for n in names},
                     )
 
@@ -65,10 +72,14 @@ class ArchiveTest(unittest.TestCase):
                     )
                     self.assertEqual(2, len(names))
                     self.assertEqual(
-                        {"setup.py", "proj/__init__.py"}, {n[1] for n in names}
+                        {"setup.py", os.path.join("proj", "__init__.py")},
+                        {n[1] for n in names},
                     )
                     self.assertEqual(
-                        {"foo-0.1/setup.py", "foo-0.1/src/proj/__init__.py"},
+                        {
+                            os.path.join("foo-0.1", "setup.py"),
+                            os.path.join("foo-0.1", "src", "proj", "__init__.py"),
+                        },
                         {n[0] for n in names},
                     )
 
@@ -79,7 +90,11 @@ class ArchiveTest(unittest.TestCase):
                     )
                     self.assertEqual(1, len(names))
                     self.assertEqual(
-                        ("foo-0.1/pyproject.toml", "foo-0.1/pyproject.toml"), names[0]
+                        (
+                            os.path.join("foo-0.1", "pyproject.toml"),
+                            os.path.join("foo-0.1", "pyproject.toml"),
+                        ),
+                        names[0],
                     )
         finally:
             os.remove(archive)
@@ -100,8 +115,12 @@ class ArchiveTest(unittest.TestCase):
                     hashes = archive_hashes(archive)
                     self.assertEqual(
                         {
-                            "foo-0.1/setup.py": "f568932ab271783a0234a22ed902131b7dfef0a9",
-                            "foo-0.1/src/proj/__init__.py": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+                            os.path.join(
+                                "foo-0.1", "setup.py"
+                            ): "f568932ab271783a0234a22ed902131b7dfef0a9",
+                            os.path.join(
+                                "foo-0.1", "src", "proj", "__init__.py"
+                            ): "da39a3ee5e6b4b0d3255bfef95601890afd80709",
                         },
                         hashes,
                     )

@@ -1,4 +1,5 @@
 import asyncio
+import os.path
 import posixpath
 import tempfile
 import unittest
@@ -66,9 +67,13 @@ class CacheTest(unittest.TestCase):
             with mock.patch.object(cache.session, "get", side_effect=get_side_effect):
                 rv = cache.fetch("projectname", url=None)
                 self.assertTrue(rv.exists(), rv)
-                self.assertEqual(f"{d}/pr/oj/projectname/index.html", str(rv))
+                self.assertEqual(
+                    os.path.join(d, "pr", "oj", "projectname", "index.html"), str(rv)
+                )
                 rv = cache.fetch("projectname", url=None)
-                self.assertEqual(f"{d}/pr/oj/projectname/index.html", str(rv))
+                self.assertEqual(
+                    os.path.join(d, "pr", "oj", "projectname", "index.html"), str(rv)
+                )
                 # TODO mock_get.assert_called_once()
                 with rv.open() as f:
                     self.assertEqual("foo", f.read())

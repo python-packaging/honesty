@@ -1,5 +1,6 @@
 import fnmatch
 import hashlib
+import os
 import os.path
 import shutil
 from pathlib import Path
@@ -37,10 +38,11 @@ def extract_and_get_names(
 
             srckey = relname
             # To do this right, we need to read setup.py to know how it gets
-            # mapped, but this is an 80% solution.
+            # mapped, but this is an 80% solution.  I'm not 100% sure this does
+            # the right thing on windows.
             if strip_top_level:
-                srckey = srckey.split("/", 1)[-1]
-            if srckey.startswith("src/"):
+                srckey = srckey.split(os.sep, 1)[-1]
+            if srckey.startswith("src" + os.sep):
                 srckey = srckey[4:]
 
             names.append((relname, srckey))
