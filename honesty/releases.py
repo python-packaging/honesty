@@ -2,13 +2,14 @@ import asyncio
 import enum
 import re
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from typing import Any, Dict, List, Match, Optional, Tuple
 
 from .cache import Cache
 
 # Apologies in advance, "parsing" html via regex
-ENTRY_RE = re.compile(
-    r'href="(?P<url>[^"#]+\/(?P<basename>[^#]+))#(?P<checksum>[^="]+=[a-f0-9]+)"'
+CHECKSUM_RE = re.compile(
+    r'\A(?P<url>[^"#]+\/(?P<basename>[^#]+))#(?P<checksum>[^="]+=[a-f0-9]+)\Z'
 )
 NUMERIC_VERSION = re.compile(
     r"^(?P<package>.*?)-(?P<version>[0-9][^-]*?)"
@@ -63,12 +64,25 @@ class FileEntry:
     # TODO extract upload date?
 
     @classmethod
-    def from_entry_match(cls, match: Match[Any]) -> "FileEntry":
-        d = match.groupdict()
-        d["file_type"] = guess_file_type(d["basename"])
-        d["version"] = guess_version(d["basename"])[1]
-        obj = cls(**d)
-        return obj
+    def from_attrs(cls, attrs: List[Tuple[str, Optional[str]]]) -> "FileEntry":
+        d = dict(attrs)
+        if d["href"] is None:  # pragma: no cover
+            raise KeyError("Empty href")
+        m = CHECKSUM_RE.match(d["href"])
+        if m is None:
+            raise UnexpectedFilename(d["href"])
+        url = m.group("url")
+        basename = m.group("basename")
+        checksum = m.group("checksum")
+
+        return cls(
+            url=url,
+            basename=basename,
+            checksum=checksum,
+            file_type=guess_file_type(basename),
+            version=guess_version(basename)[1],
+            requires_python=d.get("data-requires-python"),
+        )
 
 
 @dataclass
@@ -107,6 +121,24 @@ def guess_version(basename: str) -> Tuple[str, str]:
     return match.group(1), match.group(2)
 
 
+class LinkGatherer(HTMLParser):
+    def __init__(self, strict: bool = False):
+        super().__init__()
+        self.entries: List[FileEntry] = []
+        self.strict = strict
+
+    def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
+        if tag == "a":
+            try:
+                fe = FileEntry.from_attrs(attrs)
+            except UnexpectedFilename:
+                if not self.strict:
+                    return
+                raise
+
+            self.entries.append(fe)
+
+
 def parse_index(pkg: str, cache: Cache, strict: bool = False) -> Package:
     loop = asyncio.get_event_loop()
     package: Package = loop.run_until_complete(async_parse_index(pkg, cache, strict))
@@ -116,17 +148,9 @@ def parse_index(pkg: str, cache: Cache, strict: bool = False) -> Package:
 async def async_parse_index(pkg: str, cache: Cache, strict: bool = False) -> Package:
     package = Package(name=pkg, releases={})
     with open(await cache.async_fetch(pkg, url=None)) as f:
-        for match in ENTRY_RE.finditer(f.read()):
-            # TODO guess_version can also raise this, but they currently use the
-            # same regex; this should get parsed out once maybe in a method on
-            # FileEntry.
-            try:
-                fe = FileEntry.from_entry_match(match)
-            except UnexpectedFilename:
-                if not strict:
-                    continue
-                raise
-
+        gatherer = LinkGatherer(strict)
+        gatherer.feed(f.read())
+        for fe in gatherer.entries:
             v = fe.version
             if v not in package.releases:
                 package.releases[v] = PackageRelease(version=v, files=[])

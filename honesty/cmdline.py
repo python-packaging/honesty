@@ -43,7 +43,10 @@ async def list(fresh: bool, package_name: str) -> None:
     for k, v in package.releases.items():
         print(f"  {k}:")
         for f in v.files:
-            print(f"    {f.basename}")
+            if f.requires_python:
+                print(f"    {f.basename} (requires_python {f.requires_python})")
+            else:
+                print(f"    {f.basename}")
 
 
 @cli.command(help="Check for consistency among archives")

@@ -1,4 +1,5 @@
 import posixpath
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,6 +56,15 @@ class ReleasesTest(unittest.TestCase):
             "sha256=e705573ea8a88ec772174deea6a80c79f1e8b7e96130e27eee14b21d63f4e7f8",
             v01.files[0].checksum,
         )
+        self.assertEqual(">=3.6", v01.files[0].requires_python)
+
+    def test_error_on_unexpected_filename_regex(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            c = FakeCache(
+                d, {("woah", None): re.sub(rb'#.*?"', b'"', WOAH_INDEX_CONTENTS)}
+            )
+            with self.assertRaises(UnexpectedFilename):
+                pkg = parse_index("woah", c, strict=True)  # type: ignore
 
     def test_strict(self) -> None:
         with tempfile.TemporaryDirectory() as d:
