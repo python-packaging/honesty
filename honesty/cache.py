@@ -5,10 +5,9 @@ Cache-related stuff.
 import asyncio
 import os
 import posixpath
-import re
 import urllib.parse
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import aiohttp
 

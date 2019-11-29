@@ -1,5 +1,4 @@
 import asyncio
-import os
 import posixpath
 import shutil
 from pathlib import Path
@@ -8,7 +7,7 @@ from typing import List, Optional
 import click
 
 from honesty.cache import Cache
-from honesty.releases import FileType, Package, parse_index
+from honesty.releases import FileType, Package
 
 
 def download_many(

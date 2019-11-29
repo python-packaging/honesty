@@ -1,9 +1,8 @@
 import difflib
-import hashlib
 import os.path
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Set, Tuple, Union
 
 import click
 from infer_license.api import guess_file
@@ -11,7 +10,7 @@ from infer_license.types import License
 
 from .archive import archive_hashes, extract_and_get_names
 from .cache import Cache
-from .releases import SDIST_EXTENSIONS, FileEntry, FileType, Package
+from .releases import FileEntry, FileType, Package
 
 
 def run_checker(package: Package, version: str, verbose: bool, cache: Cache) -> int:

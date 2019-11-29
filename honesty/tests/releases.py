@@ -1,10 +1,6 @@
-import posixpath
 import re
 import tempfile
 import unittest
-from pathlib import Path
-from typing import Any
-from unittest import mock
 
 from honesty.releases import (
     FileType,
@@ -64,7 +60,7 @@ class ReleasesTest(unittest.TestCase):
                 d, {("woah", None): re.sub(rb'#.*?"', b'"', WOAH_INDEX_CONTENTS)}
             )
             with self.assertRaises(UnexpectedFilename):
-                pkg = parse_index("woah", c, strict=True)  # type: ignore
+                parse_index("woah", c, strict=True)  # type: ignore
 
     def test_strict(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -72,7 +68,7 @@ class ReleasesTest(unittest.TestCase):
                 d, {("woah", None): WOAH_INDEX_CONTENTS.replace(b"woah-0.1", b"woah")}
             )
             with self.assertRaises(UnexpectedFilename):
-                pkg = parse_index("woah", c, strict=True)  # type: ignore
+                parse_index("woah", c, strict=True)  # type: ignore
 
     def test_non_strict(self) -> None:
         with tempfile.TemporaryDirectory() as d:

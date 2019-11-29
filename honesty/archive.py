@@ -31,7 +31,7 @@ def extract_and_get_names(
     for dirpath, dirnames, filenames in os.walk(archive_root):
         for name in filenames:
             if not any(fnmatch.fnmatch(name, p) for p in patterns):
-                continue  #  skip for now
+                continue  # skip for now
 
             relname = os.path.join(dirpath[len(archive_root) + 1 :], name)
 

@@ -110,7 +110,7 @@ class CacheTest(unittest.TestCase):
     def test_aenter(self) -> None:
         async def inner() -> None:
             async with Cache() as cache:
-                pass
+                self.assertTrue(cache)
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(inner())

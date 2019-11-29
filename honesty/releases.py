@@ -3,7 +3,7 @@ import enum
 import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from typing import Any, Dict, List, Match, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from .cache import Cache
 
