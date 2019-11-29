@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import shutil
 import sys
 from pathlib import Path
 from typing import Any, List, Optional
@@ -9,9 +10,10 @@ import pkg_resources
 
 from honesty.__version__ import __version__
 from honesty.api import async_download_many
+from honesty.archive import extract_and_get_names
 from honesty.cache import Cache
 from honesty.checker import guess_license, has_nativemodules, is_pep517, run_checker
-from honesty.releases import Package, async_parse_index, parse_index
+from honesty.releases import FileType, Package, async_parse_index, parse_index
 
 
 # TODO type
@@ -170,6 +172,52 @@ async def download(
         )
 
     sys.exit(rc)
+
+
+@cli.command(help="Download/extract an sdist, print path on stdout")
+@click.option("--verbose", "-v", is_flag=True, type=bool)
+@click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.option("--dest", help="Directory to store in", default="")
+@click.option(
+    "--index-url", help="Alternate index url (uses HONESTY_INDEX_URL or pypi by default"
+)
+@click.argument("package_name")
+@wrap_async
+async def extract(
+    verbose: bool, fresh: bool, dest: str, index_url: Optional[str], package_name: str
+) -> None:
+
+    async with Cache(fresh_index=fresh, index_url=index_url) as cache:
+        package_name, operator, version = package_name.partition("==")
+        package = await async_parse_index(package_name, cache)
+        selected_versions = select_versions(package, operator, version)
+        if len(selected_versions) != 1:
+            raise click.ClickException(f"Wrong number of versions: {selected_versions}")
+
+        if verbose:
+            click.echo(f"check {package_name} {selected_versions}")
+
+        rel = package.releases[selected_versions[0]]
+        sdists = [f for f in rel.files if f.file_type == FileType.SDIST]
+        if not sdists:
+            raise click.ClickException(f"{package.name} no sdists")
+
+        lp = await cache.async_fetch(pkg=package_name, url=sdists[0].url)
+
+        archive_root, _ = extract_and_get_names(
+            lp, strip_top_level=True, patterns=("*.*",)
+        )
+
+        if dest:
+            shutil.copytree(archive_root, dest)
+        else:
+            dest = archive_root
+
+        subdirs = tuple(Path(dest).iterdir())
+        if len(subdirs) == 1:
+            print(subdirs[0].as_posix())
+        else:
+            print(dest)
 
 
 def select_versions(package: Package, operator: str, selector: str) -> List[str]:
