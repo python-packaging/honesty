@@ -1,4 +1,5 @@
 PYTHON?=python
+SOURCES=honesty setup.py
 
 .PHONY: venv
 venv:
@@ -16,19 +17,23 @@ setup:
 
 .PHONY: test
 test:
-	which python
-	python -m coverage run -m honesty.tests
-	python -m coverage report --fail-under=100 --omit='.venv/*,.tox/*' --show-missing
+	python -m coverage run -m honesty.tests $(TESTOPTS)
+	python -m coverage report
+
+.PHONY: format
+format:
+	python -m isort --recursive -y $(SOURCES)
+	python -m black $(SOURCES)
 
 .PHONY: lint
 lint:
-	isort --recursive -y honesty setup.py
-	black honesty setup.py
+	python -m isort --recursive --diff $(SOURCES)
+	python -m black --check $(SOURCES)
+	python -m flake8 $(SOURCES)
 	mypy --strict honesty
 
 .PHONY: release
 release:
-	pip install -U wheel
-	rm -r dist
-	python3 setup.py sdist bdist_wheel
+	rm -rf dist
+	python setup.py sdist bdist_wheel
 	twine upload dist/*

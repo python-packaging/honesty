@@ -30,3 +30,11 @@ These are bit flags to make sense when there are multiple problems.  If you pass
 8   some .py files present with same name but different hash in sdist (common
     when using versioneer or 2to3)
 ```
+
+
+# License
+
+Honesty is copyright [Tim Hatch](http://timhatch.com/), and licensed under
+the MIT license.  I am providing code in this repository to you under an open
+source license.  This is my personal repository; the license you receive to
+my code is from me and not from my employer. See the `LICENSE` file for details.
