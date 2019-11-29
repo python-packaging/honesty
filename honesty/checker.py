@@ -3,9 +3,11 @@ import hashlib
 import os.path
 import time
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import click
+from infer_license.api import guess_file
+from infer_license.types import License
 
 from .archive import archive_hashes, extract_and_get_names
 from .cache import Cache
@@ -113,6 +115,39 @@ def is_pep517(package: Package, version: str, verbose: bool, cache: Cache) -> bo
             else:
                 click.echo(f"{package.name} has-toml {relname}")
     return False
+
+
+def guess_license(
+    package: Package, version: str, verbose: bool, cache: Cache
+) -> Union[License, str, None]:
+    try:
+        rel = package.releases[version]
+    except KeyError:
+        raise click.ClickException(f"version={version} not available")
+
+    # Find *a* sdist
+    sdists = [f for f in rel.files if f.file_type == FileType.SDIST]
+    if not sdists:
+        raise click.ClickException(f"{package.name} no sdists")
+
+    lp = cache.fetch(pkg=package.name, url=sdists[0].url)
+
+    archive_root, names = extract_and_get_names(
+        lp, strip_top_level=True, patterns=("LICENSE*", "COPY*")
+    )
+    result_path = None
+    result: Union[License, str, None] = None
+    for relname, srcname in names:
+        # TODO for a couple of projects this is finding test fixtures, we
+        # should only be looking alongside the rootmost setup.py
+        guess = guess_file(os.path.join(archive_root, relname))
+        if result_path is None or len(relname) < len(result_path):
+            result_path = relname
+            result = guess
+
+    if result is None and result_path:
+        result = "Present but unknown"
+    return result
 
 
 def has_nativemodules(

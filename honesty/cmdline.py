@@ -10,7 +10,7 @@ import pkg_resources
 from honesty.__version__ import __version__
 from honesty.api import async_download_many
 from honesty.cache import Cache
-from honesty.checker import has_nativemodules, is_pep517, run_checker
+from honesty.checker import guess_license, has_nativemodules, is_pep517, run_checker
 from honesty.releases import Package, async_parse_index, parse_index
 
 
@@ -107,6 +107,32 @@ def native(verbose: bool, fresh: bool, package_name: str) -> None:
         rc = 0
         for v in selected_versions:
             rc |= has_nativemodules(package, v, verbose=verbose, cache=cache)
+
+    if rc != 0:
+        sys.exit(rc)
+
+
+@cli.command(help="Guess license of a package")
+@click.option("--verbose", "-v", is_flag=True, type=bool)
+@click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.argument("package_name")
+def license(verbose: bool, fresh: bool, package_name: str) -> None:
+    with Cache(fresh_index=fresh) as cache:
+        package_name, operator, version = package_name.partition("==")
+        package = parse_index(package_name, cache)
+        selected_versions = select_versions(package, operator, version)
+
+        if verbose:
+            click.echo(f"check {package_name} {selected_versions}")
+
+        rc = 0
+        for v in selected_versions:
+            license = guess_license(package, v, verbose=verbose, cache=cache)
+            if license is not None and not isinstance(license, str):
+                license = license.shortname
+            if license is None:
+                rc |= 1
+            print(f"{package_name}=={v}: {license or 'Unknown'}")
 
     if rc != 0:
         sys.exit(rc)

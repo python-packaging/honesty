@@ -35,5 +35,6 @@ setup(
         "aiohttp >= 3.6",
         "click >= 7.0",
         "dataclasses >= 0.7; python_version < '3.7'",
+        "infer-license >= 0.0.6",
     ],
 )
