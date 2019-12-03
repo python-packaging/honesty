@@ -95,6 +95,12 @@ class ReleasesTest(unittest.TestCase):
             guess_version("javatools-1.4.0.macosx-10.14-x86_64.tar.gz"),
         )
         self.assertEqual(("pypi", "2"), guess_version("pypi-2.tar.gz"))
+        self.assertEqual(
+            ("psutil", "5.3.0"), guess_version("psutil-5.3.0.win-amd64-py3.6.exe"),
+        )
+        self.assertEqual(
+            ("psutil", "5.3.0"), guess_version("psutil-5.3.0.win32-py3.6.exe"),
+        )
 
     def test_guess_file_type(self) -> None:
         self.assertEqual(FileType.SDIST, guess_file_type("foo-0.1.tar.gz"))
@@ -106,7 +112,8 @@ class ReleasesTest(unittest.TestCase):
             FileType.BDIST_DUMB,
             guess_file_type("javatools-1.4.0.macosx-10.14-x86_64.tar.gz"),
         )
-        self.assertEqual(FileType.UNKNOWN, guess_file_type("foo-0.1.exe"))
+        self.assertEqual(FileType.BDIST_WININST, guess_file_type("foo-0.1.exe"))
+        self.assertEqual(FileType.UNKNOWN, guess_file_type("foo-0.1.foo"))
         self.assertEqual(
             FileType.BDIST_DUMB,
             guess_file_type("pyre-check-0.0.29-macosx_10_11_x86_64.tar.gz"),

@@ -13,19 +13,41 @@ CHECKSUM_RE = re.compile(
 )
 NUMERIC_VERSION = re.compile(
     r"^(?P<package>.*?)-(?P<version>[0-9][^-]*?)"
-    r"(?P<suffix>(?P<platform>\.macosx|\.linux)?-.*)?$"
+    r"(?P<suffix>(?P<platform>\.macosx|\.linux|\.cygwin|\.win(?:32|xp|))?-.*)?$"
 )
 
 
 SDIST_EXTENSIONS = (".tar.gz", ".zip", ".tar.bz2")
 
-# TODO IntFlag, or a separate field for platform
+
+# This list matches warehouse/packaging/models.py with the addition of UNKNOWN.
+#
+# Platform (in the case of bdist_dumb) is not currently stored anywhere but
+# doesn't belong in this enum.
+
+# Some rough popularity numbers at the time of writing (top 5k packages, with
+# some double counts for the current release of each):
+#
+#     31 "bdist_dmg"
+#     41 "bdist_rpm"
+#    176 "bdist_msi"
+#    309 "bdist_dumb"
+#   6909 "bdist_wininst"
+#  18201 "bdist_egg"
+# 138984 "sdist"
+# 155904 "bdist_wheel"
+
+
 class FileType(enum.IntEnum):
     UNKNOWN = 0
-    SDIST = 1
-    BDIST_WHEEL = 2
-    BDIST_EGG = 3
-    BDIST_DUMB = 4
+    SDIST = 1  # .tar.gz or .zip (or for packages like Twisted, .tar.bz2)
+    BDIST_DMG = 2  # .dmg
+    BDIST_DUMB = 3  # -(platform).tar.gz
+    BDIST_EGG = 4  # .egg
+    BDIST_MSI = 5  # .msi
+    BDIST_RPM = 6  # .rpm
+    BDIST_WHEEL = 7  # .whl
+    BDIST_WININST = 8  # .exe
 
 
 class UnexpectedFilename(Exception):
@@ -37,6 +59,14 @@ def guess_file_type(filename: str) -> FileType:
         return FileType.BDIST_EGG
     elif filename.endswith(".whl"):
         return FileType.BDIST_WHEEL
+    elif filename.endswith(".exe"):
+        return FileType.BDIST_WININST
+    elif filename.endswith(".msi"):
+        return FileType.BDIST_MSI
+    elif filename.endswith(".rpm"):
+        return FileType.BDIST_RPM
+    elif filename.endswith(".dmg"):
+        return FileType.BDIST_DMG
     elif filename.endswith(SDIST_EXTENSIONS):
         filename = remove_suffix(filename)
         match = NUMERIC_VERSION.match(filename)
@@ -49,7 +79,7 @@ def guess_file_type(filename: str) -> FileType:
         elif match.group("suffix") and match.group("suffix").startswith("-macosx"):
             return FileType.BDIST_DUMB
         return FileType.SDIST
-    else:  # .exe and .rpm at least
+    else:
         return FileType.UNKNOWN
 
 
@@ -60,11 +90,16 @@ class FileEntry:
     checksum: str  # 'sha256=<foo>'
     file_type: FileType
     version: str  # TODO: better type
-    requires_python: Optional[str] = None  # '&gt;=3.6'
+    requires_python: Optional[str] = None  # '>=3.6'
+    python_version: Optional[str] = None  # 'py2.py3' or 'source'
     # TODO extract upload date?
 
     @classmethod
     def from_attrs(cls, attrs: List[Tuple[str, Optional[str]]]) -> "FileEntry":
+        """
+        Given the <a> element's attrs from parsing the simple html index,
+        returns a new FileEntry.
+        """
         d = dict(attrs)
         if d["href"] is None:  # pragma: no cover
             raise KeyError("Empty href")
@@ -98,7 +133,18 @@ class Package:
 
 
 def remove_suffix(basename: str) -> str:
-    suffixes = [".egg", ".whl", ".zip", ".gz", ".bz2", ".tar"]
+    suffixes = [
+        ".egg",
+        ".whl",
+        ".zip",
+        ".gz",
+        ".bz2",
+        ".tar",
+        ".exe",
+        ".msi",
+        ".rpm",
+        ".dmg",
+    ]
     for s in suffixes:
         if basename.endswith(s):
             basename = basename[: -len(s)]
