@@ -4,7 +4,7 @@ import json
 import os.path
 import shutil
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum, IntEnum
 from pathlib import Path
 from typing import Any, List, Optional
@@ -259,6 +259,33 @@ async def extract(
             print(os.path.join(dest, subdirs[0].name))
         else:
             print(dest)
+
+
+@cli.command(help="Print age in days for a given release")
+@click.option("--verbose", "-v", is_flag=True, type=bool)
+@click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.option("--base", help="yyyy-mm-dd of when to subtract from")
+@click.argument("package_name")
+@wrap_async
+async def age(verbose: bool, fresh: bool, base: str, package_name: str,) -> None:
+
+    if base:
+        base_date = datetime.strptime(base, "%Y-%m-%d")
+    else:
+        base_date = datetime.utcnow()
+    base_date = base_date.replace(tzinfo=timezone.utc)
+
+    async with Cache(fresh_index=fresh) as cache:
+        package_name, operator, version = package_name.partition("==")
+        package = await async_parse_index(package_name, cache, use_json=True)
+        selected_versions = select_versions(package, operator, version)
+        for v in selected_versions:
+            t = min(x.upload_time for x in package.releases[v].files)
+            assert t is not None
+
+            diff = base_date - t
+            days = diff.days + (diff.seconds / 86400.0)
+            print(f"{v}\t{t.strftime('%Y-%m-%d')}\t{days:.2f}")
 
 
 def select_versions(package: Package, operator: str, selector: str) -> List[str]:
