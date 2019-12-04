@@ -28,6 +28,7 @@ class Cache:
         self,
         cache_dir: Optional[str] = None,
         index_url: Optional[str] = None,
+        json_index_url: Optional[str] = None,
         fresh_index: bool = False,
     ) -> None:
         if not cache_dir:
@@ -42,6 +43,13 @@ class Cache:
             # in a browser, this would be a redirect; we don't know that here.
             index_url += "/"
         self.index_url = index_url
+
+        if not json_index_url:
+            json_index_url = os.environ.get("HONESTY_JSON_INDEX_URL", self.index_url)
+        assert isinstance(json_index_url, str), json_index_url
+        if not json_index_url.endswith("/"):
+            index_url += "/"
+        self.json_index_url = index_url
 
         self.fresh_index = fresh_index
         self.session = aiohttp.ClientSession(trust_env=True, raise_for_status=True)
@@ -82,7 +90,9 @@ class Cache:
 
         output_file = output_dir / (filename or "index.html")
 
-        if not output_file.exists() or (not filename and self.fresh_index):
+        if not output_file.exists() or (
+            self.fresh_index and self._is_index_filename(filename)
+        ):
             async with self.session.get(
                 url, raise_for_status=True, timeout=None
             ) as resp:
@@ -94,6 +104,9 @@ class Cache:
                 os.rename(tmp, output_file)
 
         return output_file
+
+    def _is_index_filename(self, name: Optional[str]) -> bool:
+        return name in (None, "json")
 
     def __enter__(self) -> "Cache":
         return self

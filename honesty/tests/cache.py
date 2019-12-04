@@ -36,6 +36,7 @@ class FakeCache:
     ) -> None:
         self.path: Path = Path(path)
         self.url_to_contents = url_to_contents
+        self.json_index_url = "https://pypi.org/simple/"
 
     async def async_fetch(self, package_name: str, url: Optional[str] = None) -> Path:
         basename = posixpath.basename(url) if url else f"{package_name}_index.html"
@@ -119,3 +120,9 @@ class CacheTest(unittest.TestCase):
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(inner())
+
+    def test_is_index(self) -> None:
+        with Cache() as cache:
+            self.assertTrue(cache._is_index_filename(None))
+            self.assertTrue(cache._is_index_filename("json"))
+            self.assertFalse(cache._is_index_filename("foo-0.1.tar.gz"))

@@ -1,8 +1,11 @@
 import asyncio
 import functools
+import json
 import os.path
 import shutil
 import sys
+from datetime import datetime
+from enum import Enum, IntEnum
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -27,6 +30,17 @@ def wrap_async(coro: Any) -> Any:
     return inner
 
 
+def dataclass_default(obj: Any) -> Any:
+    if hasattr(obj, "__dataclass_fields__"):
+        return obj.__dict__
+    elif isinstance(obj, (Enum, IntEnum)):
+        return obj.name
+    elif isinstance(obj, datetime):
+        return str(obj)
+    else:
+        raise TypeError(obj)
+
+
 @click.group()
 @click.version_option(__version__, prog_name="honesty")
 def cli() -> None:
@@ -35,31 +49,38 @@ def cli() -> None:
 
 @cli.command(help="List available archives")
 @click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.option("--nouse_json", is_flag=True, type=bool)
+@click.option("--as_json", is_flag=True, type=bool)
 @click.argument("package_name")
 @wrap_async
-async def list(fresh: bool, package_name: str) -> None:
+async def list(fresh: bool, nouse_json: bool, as_json: bool, package_name: str) -> None:
     async with Cache(fresh_index=fresh) as cache:
-        package = await async_parse_index(package_name, cache)
+        package = await async_parse_index(package_name, cache, use_json=not nouse_json)
 
-    print(f"package {package.name}")
-    print("releases:")
-    for k, v in package.releases.items():
-        print(f"  {k}:")
-        for f in v.files:
-            if f.requires_python:
-                print(f"    {f.basename} (requires_python {f.requires_python})")
-            else:
-                print(f"    {f.basename}")
+    if as_json:
+        for k, v in package.releases.items():
+            print(json.dumps(v, default=dataclass_default, sort_keys=True))
+    else:
+        print(f"package {package.name}")
+        print("releases:")
+        for k, v in package.releases.items():
+            print(f"  {k}:")
+            for f in v.files:
+                if f.requires_python:
+                    print(f"    {f.basename} (requires_python {f.requires_python})")
+                else:
+                    print(f"    {f.basename}")
 
 
 @cli.command(help="Check for consistency among archives")
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.option("--nouse_json", is_flag=True, type=bool)
 @click.argument("package_name")
-def check(verbose: bool, fresh: bool, package_name: str) -> None:
+def check(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) -> None:
     with Cache(fresh_index=fresh) as cache:
         package_name, operator, version = package_name.partition("==")
-        package = parse_index(package_name, cache)
+        package = parse_index(package_name, cache, use_json=not nouse_json)
         selected_versions = select_versions(package, operator, version)
 
         if verbose:
@@ -76,11 +97,12 @@ def check(verbose: bool, fresh: bool, package_name: str) -> None:
 @cli.command(help="Check for presence of pep517 markers")
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.option("--nouse_json", is_flag=True, type=bool)
 @click.argument("package_name")
-def ispep517(verbose: bool, fresh: bool, package_name: str) -> None:
+def ispep517(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) -> None:
     with Cache(fresh_index=fresh) as cache:
         package_name, operator, version = package_name.partition("==")
-        package = parse_index(package_name, cache)
+        package = parse_index(package_name, cache, use_json=not nouse_json)
         selected_versions = select_versions(package, operator, version)
 
         if verbose:
@@ -97,11 +119,12 @@ def ispep517(verbose: bool, fresh: bool, package_name: str) -> None:
 @cli.command(help="Check for native modules in bdist")
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.option("--nouse_json", is_flag=True, type=bool)
 @click.argument("package_name")
-def native(verbose: bool, fresh: bool, package_name: str) -> None:
+def native(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) -> None:
     with Cache(fresh_index=fresh) as cache:
         package_name, operator, version = package_name.partition("==")
-        package = parse_index(package_name, cache)
+        package = parse_index(package_name, cache, use_json=not nouse_json)
         selected_versions = select_versions(package, operator, version)
 
         if verbose:
@@ -118,11 +141,12 @@ def native(verbose: bool, fresh: bool, package_name: str) -> None:
 @cli.command(help="Guess license of a package")
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.option("--nouse_json", is_flag=True, type=bool)
 @click.argument("package_name")
-def license(verbose: bool, fresh: bool, package_name: str) -> None:
+def license(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) -> None:
     with Cache(fresh_index=fresh) as cache:
         package_name, operator, version = package_name.partition("==")
-        package = parse_index(package_name, cache)
+        package = parse_index(package_name, cache, use_json=not nouse_json)
         selected_versions = select_versions(package, operator, version)
 
         if verbose:
@@ -144,6 +168,7 @@ def license(verbose: bool, fresh: bool, package_name: str) -> None:
 @cli.command(help="Download an sdist, print path on stdout")
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.option("--nouse_json", is_flag=True, type=bool)
 @click.option("--dest", help="Directory to store in", default="")
 @click.option(
     "--index-url", help="Alternate index url (uses HONESTY_INDEX_URL or pypi by default"
@@ -151,7 +176,12 @@ def license(verbose: bool, fresh: bool, package_name: str) -> None:
 @click.argument("package_name")
 @wrap_async
 async def download(
-    verbose: bool, fresh: bool, dest: str, index_url: Optional[str], package_name: str
+    verbose: bool,
+    fresh: bool,
+    nouse_json: bool,
+    dest: str,
+    index_url: Optional[str],
+    package_name: str,
 ) -> None:
     dest_path: Optional[Path]
     if dest:
@@ -162,7 +192,7 @@ async def download(
 
     async with Cache(fresh_index=fresh, index_url=index_url) as cache:
         package_name, operator, version = package_name.partition("==")
-        package = await async_parse_index(package_name, cache)
+        package = await async_parse_index(package_name, cache, use_json=not nouse_json)
         selected_versions = select_versions(package, operator, version)
 
         if verbose:
@@ -178,6 +208,7 @@ async def download(
 @cli.command(help="Download/extract an sdist, print path on stdout")
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
+@click.option("--nouse_json", is_flag=True, type=bool)
 @click.option("--dest", help="Directory to store in", default="")
 @click.option(
     "--index-url", help="Alternate index url (uses HONESTY_INDEX_URL or pypi by default"
@@ -185,12 +216,17 @@ async def download(
 @click.argument("package_name")
 @wrap_async
 async def extract(
-    verbose: bool, fresh: bool, dest: str, index_url: Optional[str], package_name: str
+    verbose: bool,
+    fresh: bool,
+    nouse_json: bool,
+    dest: str,
+    index_url: Optional[str],
+    package_name: str,
 ) -> None:
 
     async with Cache(fresh_index=fresh, index_url=index_url) as cache:
         package_name, operator, version = package_name.partition("==")
-        package = await async_parse_index(package_name, cache)
+        package = await async_parse_index(package_name, cache, use_json=not nouse_json)
         selected_versions = select_versions(package, operator, version)
         if len(selected_versions) != 1:
             raise click.ClickException(f"Wrong number of versions: {selected_versions}")

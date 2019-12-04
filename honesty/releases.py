@@ -1,9 +1,12 @@
 import asyncio
 import enum
+import json
 import re
+import urllib.parse
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from html.parser import HTMLParser
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .cache import Cache
 
@@ -15,6 +18,8 @@ NUMERIC_VERSION = re.compile(
     r"^(?P<package>.*?)-(?P<version>[0-9][^-]*?)"
     r"(?P<suffix>(?P<platform>\.macosx|\.linux|\.cygwin|\.win(?:32|xp|))?-.*)?$"
 )
+
+ISO8601_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 
 SDIST_EXTENSIONS = (".tar.gz", ".zip", ".tar.bz2")
@@ -92,6 +97,7 @@ class FileEntry:
     version: str  # TODO: better type
     requires_python: Optional[str] = None  # '>=3.6'
     python_version: Optional[str] = None  # 'py2.py3' or 'source'
+    upload_time: Optional[datetime] = None
     # TODO extract upload date?
 
     @classmethod
@@ -118,6 +124,34 @@ class FileEntry:
             version=guess_version(basename)[1],
             requires_python=d.get("data-requires-python"),
         )
+
+    @classmethod
+    def from_json(cls, version: str, obj: Dict[str, Any]) -> "FileEntry":
+        # We still guess file_type here because warehouse gets it wrong for
+        # bsdist_dumb and reports them as sdist.
+        return cls(
+            url=obj["url"],
+            basename=obj["filename"],
+            checksum=f"sha256={obj['digests']['sha256']}",
+            file_type=guess_file_type(obj["filename"]),
+            version=version,
+            requires_python=obj["requires_python"],
+            upload_time=parse_time(obj["upload_time_iso_8601"]),
+        )
+
+
+def parse_time(t: str) -> datetime:
+    """Returns a parsed time with optional fractional seconds."""
+    # Timestamps before ~2009-02-16 do not have fractional seconds.
+    t = t.rstrip("Z")
+    fmt, _, fractional = t.partition(".")
+
+    # This makes it microseconds
+    fractional = fractional[:6].ljust(6, "0")
+
+    return datetime.strptime(t.split(".")[0], ISO8601_FORMAT).replace(
+        microsecond=int(fractional), tzinfo=timezone.utc
+    )
 
 
 @dataclass
@@ -185,21 +219,48 @@ class LinkGatherer(HTMLParser):
             self.entries.append(fe)
 
 
-def parse_index(pkg: str, cache: Cache, strict: bool = False) -> Package:
+def parse_index(
+    pkg: str, cache: Cache, strict: bool = False, use_json: bool = False
+) -> Package:
     loop = asyncio.get_event_loop()
-    package: Package = loop.run_until_complete(async_parse_index(pkg, cache, strict))
+    package: Package = loop.run_until_complete(
+        async_parse_index(pkg, cache, strict, use_json)
+    )
     return package
 
 
-async def async_parse_index(pkg: str, cache: Cache, strict: bool = False) -> Package:
+async def async_parse_index(
+    pkg: str, cache: Cache, strict: bool = False, use_json: bool = False
+) -> Package:
     package = Package(name=pkg, releases={})
-    with open(await cache.async_fetch(pkg, url=None)) as f:
-        gatherer = LinkGatherer(strict)
-        gatherer.feed(f.read())
+    if not use_json:
+        # TODO: This preserves the input order, which is not based on proper
+        # version comparisons.
+        with open(await cache.async_fetch(pkg, url=None)) as f:
+            gatherer = LinkGatherer(strict)
+            gatherer.feed(f.read())
+
         for fe in gatherer.entries:
             v = fe.version
             if v not in package.releases:
                 package.releases[v] = PackageRelease(version=v, files=[])
             package.releases[v].files.append(fe)
+    else:
+        # This will redirect away from canonical name if they differ
+        # TODO: This doesn't obey environment variable, which we could
+        url = urllib.parse.urljoin(cache.json_index_url, f"../pypi/{pkg}/json")
+        with open(await cache.async_fetch(pkg, url=url)) as f:
+            obj = json.loads(f.read())
+
+        for k, release in obj["releases"].items():
+            package.releases[k] = PackageRelease(version=k, files=[])
+            for release_file in release:
+                try:
+                    package.releases[k].files.append(
+                        FileEntry.from_json(k, release_file)
+                    )
+                except UnexpectedFilename:
+                    if strict:
+                        raise
 
     return package
