@@ -10,6 +10,13 @@ for some of the obvious ways that packages might be tampered with.
 honesty list <package name>
 honesty check <package name>[==version|==*] [--verbose]
 honesty download <package name>[==version|==*] [--dest=some-path/]
+honesty extract <package name>[==version|==*] [--dest=some-path/]
+honesty license <package name>[==version|==*]
+
+(provisional)
+honesty ispep517 <package name>[==version|==*]
+honesty native <package name>[==version|==*]
+honesty age <package name>[==version|==*]
 ```
 
 It will store a package cache by default under `~/.cache/honesty/pypi` but you
@@ -17,7 +24,7 @@ can change that with `HONESTY_CACHE` env var.  If you have a local bandersnatch,
 specify `HONESTY_INDEX_URL` to your `/simple/` url.
 
 
-# Exit Status
+# Exit Status of 'check'
 
 These are bit flags to make sense when there are multiple problems.  If you pass
 `*` for version, they are or'd together.
