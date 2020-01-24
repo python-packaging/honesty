@@ -2,7 +2,7 @@ import asyncio
 import posixpath
 import shutil
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Optional, Sequence, Union
 
 import click
 
@@ -13,7 +13,7 @@ from .version import LegacyVersion, LooseVersion, Version, parse_version
 
 def download_many(
     package: Package,
-    versions: List[Union[LooseVersion, str]],
+    versions: Sequence[Union[LooseVersion, str]],
     dest: Path,
     cache: Cache,
     verbose: bool = False,
@@ -28,7 +28,7 @@ def download_many(
 
 async def async_download_many(
     package: Package,
-    versions: List[Union[LooseVersion, str]],
+    versions: Sequence[Union[LooseVersion, str]],
     dest: Optional[Path],
     cache: Cache,
     verbose: bool = False,

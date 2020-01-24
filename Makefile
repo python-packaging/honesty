@@ -12,6 +12,7 @@ venv:
 
 .PHONY: setup
 setup:
+	python -m pip install -U pip wheel
 	python -m pip install -Ur requirements-dev.txt
 
 .PHONY: test
@@ -26,6 +27,7 @@ format:
 
 .PHONY: lint
 lint:
+	touch honesty/__version__.py
 	python -m isort --recursive --diff $(SOURCES)
 	python -m black --check $(SOURCES)
 	python -m flake8 $(SOURCES)

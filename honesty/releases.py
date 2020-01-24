@@ -6,7 +6,7 @@ import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .cache import Cache
 from .version import LooseVersion, parse_version
@@ -23,7 +23,7 @@ NUMERIC_VERSION = re.compile(
 ISO8601_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 
-SDIST_EXTENSIONS = (".tar.gz", ".zip", ".tar.bz2")
+SDIST_EXTENSIONS = (".tgz", ".tar.gz", ".zip", ".tar.bz2")
 
 
 # This list matches warehouse/packaging/models.py with the addition of UNKNOWN.
@@ -46,7 +46,9 @@ SDIST_EXTENSIONS = (".tar.gz", ".zip", ".tar.bz2")
 
 class FileType(enum.IntEnum):
     UNKNOWN = 0
-    SDIST = 1  # .tar.gz or .zip (or for packages like Twisted, .tar.bz2)
+    SDIST = (
+        1  # .tar.gz or .zip (or for packages like Twisted, .tar.bz2, or amqplib, .tgz)
+    )
     BDIST_DMG = 2  # .dmg
     BDIST_DUMB = 3  # -(platform).tar.gz
     BDIST_EGG = 4  # .egg
@@ -97,6 +99,7 @@ class FileEntry:
     file_type: FileType
     version: str  # TODO: better type
     requires_python: Optional[str] = None  # '>=3.6'
+    size: Optional[int] = None
     python_version: Optional[str] = None  # 'py2.py3' or 'source'
     upload_time: Optional[datetime] = None
     # TODO extract upload date?
@@ -137,6 +140,7 @@ class FileEntry:
             file_type=guess_file_type(obj["filename"]),
             version=version,
             requires_python=obj["requires_python"],
+            size=obj["size"],
             upload_time=parse_time(obj["upload_time_iso_8601"]),
         )
 
@@ -160,13 +164,14 @@ class PackageRelease:
     version: str  # This is the original version, exactly as provided
     parsed_version: LooseVersion
     files: List[FileEntry]
+    requires: Optional[List[str]] = None
 
 
 @dataclass
 class Package:
     name: str
     releases: Dict[LooseVersion, PackageRelease]
-    requires: Optional[List[str]] = None
+    requires: Optional[Sequence[str]] = None
 
 
 def remove_suffix(basename: str) -> str:
