@@ -23,6 +23,7 @@ from .cache import Cache
 from .checker import guess_license, has_nativemodules, is_pep517, run_checker
 from .deps import DepEdge, DepNode, DepWalker, print_deps, print_flat_deps
 from .releases import async_parse_index, FileType, Package, parse_index
+from .vcs import CloneAnalyzer, extract2, matchmerge
 
 try:
     from .__version__ import version as __version__
@@ -485,6 +486,77 @@ def deps(
         print_flat_deps(fake_root, seen)
     else:
         print_deps(fake_root, seen)
+
+
+@cli.command(help="Guess what git rev corresponds to a release")
+@click.option("--url-only", is_flag=True)
+@click.option("--try_order", default="likely_tags,tags,branches")
+@click.option("--fresh", "-f", is_flag=True)
+@click.argument("package_names", nargs=-1)
+@wrap_async
+async def revs(
+    url_only: bool, fresh: bool, try_order: str, package_names: List[str]
+) -> None:
+    async with Cache(fresh_index=fresh) as cache:
+        for package_name in package_names:
+            url = None
+            if "@" in package_name:
+                package_name, url = package_name.split("@")
+
+            package_name, operator, version = package_name.partition("==")
+            try:
+                package = await async_parse_index(package_name, cache, use_json=True)
+            except Exception as e:
+                print(f"{package_name}: error {e}")
+                continue
+
+            if not url:
+                # We can only do this if we know a vcs url.
+                url = extract2(package)
+                if not url:
+                    click.echo(f"Sorry, {package.name} does not have a known vcs")
+                    continue
+
+            if url_only:
+                print(f"{package.name}: {url}")
+                continue
+
+            ca = CloneAnalyzer(url)
+
+            selected_versions = select_versions(package, operator, version)
+            for sv in selected_versions:
+                # TODO support verssion '*' and such better
+                rel = package.releases[sv]
+                sdists = [f for f in rel.files if f.file_type == FileType.SDIST]
+                type_suffix = "sdist"
+                if not sdists:
+                    # These are generally ordered by python version, so this
+                    # makes us prefer a more current release, no 3to2
+                    sdists = [
+                        f for f in rel.files if f.file_type == FileType.BDIST_WHEEL
+                    ]
+                    type_suffix = "wheel"
+
+                lp = await cache.async_fetch(pkg=package_name, url=sdists[0].url)
+
+                # TODO: More than just *.py...
+                archive_root, names = extract_and_get_names(
+                    lp, strip_top_level=True, patterns=("*.*",)
+                )
+
+                # This makes an assumption the repo and tree are set up the same (no
+                # subdir)
+                click.echo(f"{package.name}=={sv} {type_suffix}:")
+
+                match = ca.find_best_match(
+                    archive_root, names, sv, try_order=try_order.split(",")
+                )
+                # TODO attempt a describe on revs, and don't sort alphabetically
+                simplified = sorted(set(m[2] for m in match))
+                if simplified:
+                    print(f"  p={match[0][0]} {simplified}")
+                else:
+                    print("  no match")
 
 
 def select_versions(package: Package, operator: str, selector: str) -> List[Version]:

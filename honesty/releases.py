@@ -178,6 +178,8 @@ class Package:
     name: str
     releases: Dict[Version, PackageRelease]
     requires: Optional[Sequence[str]] = None
+    home_page: Optional[str] = None
+    project_urls: Optional[Dict[str, str]] = None
 
 
 def remove_suffix(basename: str) -> str:
@@ -291,6 +293,8 @@ async def async_parse_index(
                 except UnexpectedFilename:
                     if strict:
                         raise
+        package.home_page = obj["info"]["home_page"]
+        package.project_urls = obj["info"]["project_urls"]
 
     package.releases = dict(sorted(releases.items()))
     for rel in package.releases.values():
