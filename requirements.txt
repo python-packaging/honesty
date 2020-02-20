@@ -1,4 +1,5 @@
 aiohttp==3.6.2
+appdirs==1.4.3
 click==7.0
 dataclasses==0.7 ; python_version < '3.7'
 infer-license>=0.0.6

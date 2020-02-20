@@ -17,6 +17,7 @@ setup(
     entry_points={"console_scripts": ["honesty = honesty.cmdline:cli"]},
     install_requires=[
         "aiohttp >= 3.6",
+        "appdirs >= 1.4",
         "click >= 7.0",
         "dataclasses >= 0.7; python_version < '3.7'",
         "infer-license >= 0.0.6",

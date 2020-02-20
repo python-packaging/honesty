@@ -19,9 +19,13 @@ honesty native <package name>[==version|==*]
 honesty age <package name>[==version|==*]
 ```
 
-It will store a package cache by default under `~/.cache/honesty/pypi` but you
-can change that with `HONESTY_CACHE` env var.  If you have a local bandersnatch,
-specify `HONESTY_INDEX_URL` to your `/simple/` url.
+It will store a package cache, using the normal appdirs package to pick a
+location (on Linux, this defaults to `~/.cache/honesty/pypi` but, you can
+override with `XDG_CACHE_HOME` or `HONESTY_CACHE` environment variables).
+
+If you have a local bandersnatch, specify `HONESTY_INDEX_URL` to your `/simple/`
+url.  It also must support `/pypi/<package>/json` or pass `--nouse-json` to the
+commands that support it.
 
 
 # Exit Status of 'check'

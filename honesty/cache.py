@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import aiohttp
+import appdirs
 
 
 def cache_dir(pkg: str) -> Path:
@@ -18,7 +19,9 @@ def cache_dir(pkg: str) -> Path:
     return Path(a, b, pkg)
 
 
-DEFAULT_CACHE_DIR = "~/.cache/honesty/pypi"
+DEFAULT_CACHE_DIR = os.path.join(
+    appdirs.user_cache_dir("honesty", "python-packaging"), "pypi",
+)
 DEFAULT_HONESTY_INDEX_URL = "https://pypi.org/simple/"
 BUFFER_SIZE = 4096 * 1024  # 4M
 
