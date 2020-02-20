@@ -7,7 +7,7 @@ import os
 import posixpath
 import urllib.parse
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 import aiohttp
 import appdirs
@@ -33,6 +33,7 @@ class Cache:
         index_url: Optional[str] = None,
         json_index_url: Optional[str] = None,
         fresh_index: bool = False,
+        aiohttp_client_session_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         if not cache_dir:
             cache_dir = os.environ.get("HONESTY_CACHE", DEFAULT_CACHE_DIR)
@@ -55,7 +56,13 @@ class Cache:
         self.json_index_url = index_url
 
         self.fresh_index = fresh_index
-        self.session = aiohttp.ClientSession(trust_env=True, raise_for_status=True)
+        cskwargs: Dict[str, Any] = {
+            "trust_env": True,
+            "raise_for_status": True,
+        }
+        if aiohttp_client_session_kwargs is not None:
+            cskwargs.update(aiohttp_client_session_kwargs)
+        self.session = aiohttp.ClientSession(**cskwargs)
 
     def fetch(self, pkg: str, url: Optional[str]) -> Path:
         loop = asyncio.get_event_loop()
