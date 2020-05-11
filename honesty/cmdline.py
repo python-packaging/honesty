@@ -10,14 +10,14 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 import click
-import pkg_resources
 
-from honesty.__version__ import __version__
-from honesty.api import async_download_many
-from honesty.archive import extract_and_get_names
-from honesty.cache import Cache
-from honesty.checker import guess_license, has_nativemodules, is_pep517, run_checker
-from honesty.releases import FileType, Package, async_parse_index, parse_index
+from .__version__ import __version__
+from .api import async_download_many
+from .archive import extract_and_get_names
+from .cache import Cache
+from .checker import guess_license, has_nativemodules, is_pep517, run_checker
+from .releases import FileType, Package, async_parse_index, parse_index
+from .version import LooseVersion, parse_version
 
 
 # TODO type
@@ -42,7 +42,7 @@ def dataclass_default(obj: Any) -> Any:
 
 
 @click.group()
-@click.version_option(__version__, prog_name="honesty")
+@click.version_option(__version__)
 def cli() -> None:
     pass
 
@@ -199,7 +199,11 @@ async def download(
             click.echo(f"check {package_name} {selected_versions}")
 
         rc = await async_download_many(
-            package, versions=selected_versions, dest=dest_path, cache=cache
+            package,
+            versions=selected_versions,
+            dest=dest_path,
+            cache=cache,
+            verbose=verbose,
         )
 
     sys.exit(rc)
@@ -288,7 +292,9 @@ async def age(verbose: bool, fresh: bool, base: str, package_name: str,) -> None
             print(f"{v}\t{t.strftime('%Y-%m-%d')}\t{days:.2f}")
 
 
-def select_versions(package: Package, operator: str, selector: str) -> List[str]:
+def select_versions(
+    package: Package, operator: str, selector: str
+) -> List[LooseVersion]:
     """
     Given operator='==' and selector='*' or '2.0', return a list of the matching
     versions, in increasing order.
@@ -300,19 +306,20 @@ def select_versions(package: Package, operator: str, selector: str) -> List[str]
         raise click.ClickException("Only '==' is supported")
 
     if selector == "":
-        # latest
-        version = sorted(package.releases, key=pkg_resources.parse_version)[-1]
+        # latest; we have a function called `list`
+        version = [x for x in package.releases.keys()][-1]
         return [version]
     elif selector == "*":
-        versions: List[str] = sorted(package.releases, key=pkg_resources.parse_version)
-        return versions
+        # we have a function called `list`
+        return [x for x in package.releases.keys()]
     else:
-        if selector not in package.releases:
+        pv = parse_version(selector)
+        if pv not in package.releases:
             raise click.ClickException(
                 f"The version {selector} does not exist for {package.name}"
             )
-        return [selector]
+        return [pv]
 
 
 if __name__ == "__main__":
-    cli()
+    cli(prog_name="honesty")

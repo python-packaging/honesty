@@ -1,9 +1,10 @@
 import datetime
+import json
 import re
 import tempfile
 import unittest
 
-from honesty.releases import (
+from ..releases import (
     FileType,
     UnexpectedFilename,
     guess_file_type,
@@ -11,7 +12,8 @@ from honesty.releases import (
     parse_index,
     parse_time,
 )
-from honesty.tests.cache import FakeCache
+from ..version import parse_version
+from .cache import FakeCache
 
 WOAH_INDEX_CONTENTS = b"""\
 <!DOCTYPE html>
@@ -114,7 +116,7 @@ class ReleasesTest(unittest.TestCase):
         self.assertEqual("woah", pkg.name)
         self.assertEqual(2, len(pkg.releases))
 
-        v01 = pkg.releases["0.1"]
+        v01 = pkg.releases[parse_version("0.1")]
         self.assertEqual(2, len(v01.files))
 
         self.assertEqual(
@@ -139,7 +141,7 @@ class ReleasesTest(unittest.TestCase):
         self.assertEqual("woah", pkg.name)
         self.assertEqual(2, len(pkg.releases))
 
-        v01 = pkg.releases["0.1"]
+        v01 = pkg.releases[parse_version("0.1")]
         self.assertEqual(2, len(v01.files))
 
         self.assertEqual(
@@ -157,6 +159,28 @@ class ReleasesTest(unittest.TestCase):
                 2019, 9, 19, 14, 32, 17, 358350, tzinfo=datetime.timezone.utc
             ),
             v01.files[0].upload_time,
+        )
+
+    def test_get_entries_json_ordering(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            t = json.loads(WOAH_JSON_CONTENTS)
+            x = {
+                "0.20": t["releases"]["0.1"],
+                "0.9": t["releases"]["0.2"],
+            }
+            t["releases"] = x
+            c = FakeCache(
+                d,
+                {
+                    ("woah", "https://pypi.org/pypi/woah/json"): json.dumps(t).encode(
+                        "utf-8"
+                    )
+                },
+            )
+            pkg = parse_index("woah", c, use_json=True)  # type: ignore
+
+        self.assertEqual(
+            [parse_version("0.9"), parse_version("0.20")], list(pkg.releases.keys())
         )
 
     def test_error_on_unexpected_filename_regex(self) -> None:
@@ -184,7 +208,7 @@ class ReleasesTest(unittest.TestCase):
 
         self.assertEqual(1, len(pkg.releases))
 
-        v02 = pkg.releases["0.2"]
+        v02 = pkg.releases[parse_version("0.2")]
         self.assertEqual(2, len(v02.files))
 
     def test_guess_version(self) -> None:

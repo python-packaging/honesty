@@ -21,5 +21,6 @@ setup(
         "click >= 7.0",
         "dataclasses >= 0.7; python_version < '3.7'",
         "infer-license >= 0.0.6",
+        "packaging >= 20.0",
     ],
 )

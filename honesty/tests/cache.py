@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from unittest import mock
 
-from honesty.cache import Cache
+from ..cache import Cache
 
 
 class AiohttpStreamMock:

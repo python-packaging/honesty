@@ -2,16 +2,21 @@ import asyncio
 import posixpath
 import shutil
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import click
 
-from honesty.cache import Cache
-from honesty.releases import FileType, Package
+from .cache import Cache
+from .releases import FileEntry, FileType, Package, PackageRelease
+from .version import LegacyVersion, LooseVersion, Version, parse_version
 
 
 def download_many(
-    package: Package, versions: List[str], dest: Path, cache: Cache
+    package: Package,
+    versions: List[Union[LooseVersion, str]],
+    dest: Path,
+    cache: Cache,
+    verbose: bool = False,
 ) -> int:
     """
     Intended as a convenience method for the CLI.  If you want async duplicate
@@ -22,7 +27,11 @@ def download_many(
 
 
 async def async_download_many(
-    package: Package, versions: List[str], dest: Optional[Path], cache: Cache
+    package: Package,
+    versions: List[Union[LooseVersion, str]],
+    dest: Optional[Path],
+    cache: Cache,
+    verbose: bool = False,
 ) -> int:
     # Once aioitertools has a new release, this can use concurency-limited
     # gather
@@ -33,18 +42,28 @@ async def async_download_many(
             result = await coro
             print(result.as_posix())
         except Exception as e:
+            if verbose:
+                raise
             click.secho(f"Error: {e}", fg="red")
             rc |= 1
     return rc
 
 
 async def async_download_one(
-    package: Package, version: str, dest: Optional[Path], cache: Cache
+    package: Package,
+    version: Union[LooseVersion, str],
+    dest: Optional[Path],
+    cache: Cache,
 ) -> Path:
-    sdists = [
-        f for f in package.releases[version].files if f.file_type == FileType.SDIST
-    ]
-    url = sdists[0].url
+    if isinstance(version, str):
+        version = parse_version(version)
+    if not isinstance(version, (LegacyVersion, Version)):
+        raise TypeError(
+            f"version {version!r} comes from {version.__module__}, not packaging.version"
+        )
+    rel = pick_release(package, version)
+    sdist = pick_sdist(package.name, rel)
+    url = sdist.url
     cache_path = await cache.async_fetch(package.name, url)
     # TODO: check hash
     if dest:
@@ -58,3 +77,27 @@ async def async_download_one(
         shutil.copyfile(cache_path, dest_filename)
         return dest_filename
     return cache_path
+
+
+def pick_release(package: Package, version: LooseVersion) -> PackageRelease:
+    # Only works on conrete versions, no operators
+    if version in package.releases:
+        return package.releases[version]
+
+    raise Exception(f"No version for {package.name} matching {version}")
+
+
+def pick_sdist(package_name: str, release: PackageRelease) -> FileEntry:
+    pick: Optional[FileEntry] = None
+
+    # Prefer .tar.gz over .zip
+    for f in release.files:
+        if f.file_type == FileType.SDIST and (
+            pick is None or pick.basename.endswith(".zip")
+        ):
+            pick = f
+
+    if not pick:
+        raise Exception(f"{package_name}=={release.parsed_version} no sdist")
+
+    return pick

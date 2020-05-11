@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict
 from unittest import mock
 
-from honesty.archive import archive_hashes, extract_and_get_names
+from ..archive import archive_hashes, extract_and_get_names
 
 
 def create_test_archive(

@@ -110,7 +110,7 @@ class Cache:
                 with open(tmp, "wb") as f:
                     async for chunk in resp.content.iter_any():
                         f.write(chunk)
-                # Last-writer-wins semantics
+                # Last-writer-wins semantics, even on Windows
                 os.replace(tmp, output_file)
 
         return output_file

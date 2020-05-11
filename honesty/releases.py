@@ -6,9 +6,10 @@ import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .cache import Cache
+from .version import LooseVersion, parse_version
 
 # Apologies in advance, "parsing" html via regex
 CHECKSUM_RE = re.compile(
@@ -156,14 +157,16 @@ def parse_time(t: str) -> datetime:
 
 @dataclass
 class PackageRelease:
-    version: str
+    version: str  # This is the original version, exactly as provided
+    parsed_version: LooseVersion
     files: List[FileEntry]
 
 
 @dataclass
 class Package:
     name: str
-    releases: Dict[str, PackageRelease]
+    releases: Dict[LooseVersion, PackageRelease]
+    requires: Optional[List[str]] = None
 
 
 def remove_suffix(basename: str) -> str:
@@ -233,34 +236,40 @@ async def async_parse_index(
     pkg: str, cache: Cache, strict: bool = False, use_json: bool = False
 ) -> Package:
     package = Package(name=pkg, releases={})
+    releases: Dict[LooseVersion, PackageRelease] = {}
+
+    # The input order of releases in both cases is not correct; so we sort at
+    # the end before adding to the Package.
     if not use_json:
-        # TODO: This preserves the input order, which is not based on proper
-        # version comparisons.
         with open(await cache.async_fetch(pkg, url=None)) as f:
             gatherer = LinkGatherer(strict)
             gatherer.feed(f.read())
 
         for fe in gatherer.entries:
             v = fe.version
-            if v not in package.releases:
-                package.releases[v] = PackageRelease(version=v, files=[])
-            package.releases[v].files.append(fe)
+            pv = parse_version(v)
+            if pv not in releases:
+                releases[pv] = PackageRelease(version=v, parsed_version=pv, files=[])
+            releases[pv].files.append(fe)
     else:
         # This will redirect away from canonical name if they differ
-        # TODO: This doesn't obey environment variable, which we could
         url = urllib.parse.urljoin(cache.json_index_url, f"../pypi/{pkg}/json")
         with open(await cache.async_fetch(pkg, url=url)) as f:
             obj = json.loads(f.read())
 
+        if obj.get("requires_dist") is not None:
+            package.requires = obj["requires_dist"]
+
         for k, release in obj["releases"].items():
-            package.releases[k] = PackageRelease(version=k, files=[])
+            pv = parse_version(k)
+            releases[pv] = PackageRelease(version=k, parsed_version=pv, files=[])
             for release_file in release:
                 try:
-                    package.releases[k].files.append(
-                        FileEntry.from_json(k, release_file)
-                    )
+                    releases[pv].files.append(FileEntry.from_json(k, release_file))
                 except UnexpectedFilename:
                     if strict:
                         raise
+
+    package.releases = dict(sorted(releases.items()))
 
     return package
