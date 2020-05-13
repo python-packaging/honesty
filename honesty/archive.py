@@ -6,6 +6,11 @@ import shutil
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
+import appdirs
+
+DEFAULT_EXTDIR = os.path.join(
+    appdirs.user_cache_dir("honesty", "python-packaging"), "ext"
+)
 ZIP_EXTENSIONS = (".zip", ".egg", ".whl")
 
 
@@ -14,9 +19,7 @@ def extract_and_get_names(
     strip_top_level: bool = False,
     patterns: Iterable[str] = ("*.py",),
 ) -> Tuple[str, List[Tuple[str, str]]]:
-    cache_path = os.path.expanduser(
-        os.environ.get("HONESTY_EXTDIR", "~/.cache/honesty/ext")
-    )
+    cache_path = os.path.expanduser(os.environ.get("HONESTY_EXTDIR", DEFAULT_EXTDIR))
     archive_root = os.path.join(cache_path, archive_filename.name)
     if not os.path.exists(archive_root + ".done"):
         format = "zip" if str(archive_filename).endswith(ZIP_EXTENSIONS) else None

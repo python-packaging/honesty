@@ -89,13 +89,6 @@ class CacheTest(unittest.TestCase):
                 with rv.open() as f:
                     self.assertEqual("relpath", f.read())
 
-    def test_cache_defaults(self) -> None:
-        with Cache() as cache:
-            self.assertEqual(
-                Path("~/.cache/honesty/pypi").expanduser(), cache.cache_path
-            )
-            self.assertEqual("https://pypi.org/simple/", cache.index_url)
-
     @mock.patch("honesty.cache.os.environ.get")
     def test_cache_env_vars(self, mock_get: Any) -> None:
         mock_get.side_effect = {
