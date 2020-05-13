@@ -111,7 +111,7 @@ class Cache:
                     async for chunk in resp.content.iter_any():
                         f.write(chunk)
                 # Last-writer-wins semantics
-                os.rename(tmp, output_file)
+                os.replace(tmp, output_file)
 
         return output_file
 
