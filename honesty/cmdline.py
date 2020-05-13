@@ -76,19 +76,22 @@ async def list(fresh: bool, nouse_json: bool, as_json: bool, package_name: str) 
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
 @click.option("--nouse_json", is_flag=True, type=bool)
-@click.argument("package_name")
-def check(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) -> None:
+@click.argument("package_names", nargs=-1)
+def check(
+    verbose: bool, fresh: bool, nouse_json: bool, package_names: List[str]
+) -> None:
+    rc = 0
     with Cache(fresh_index=fresh) as cache:
-        package_name, operator, version = package_name.partition("==")
-        package = parse_index(package_name, cache, use_json=not nouse_json)
-        selected_versions = select_versions(package, operator, version)
+        for package_name in package_names:
+            package_name, operator, version = package_name.partition("==")
+            package = parse_index(package_name, cache, use_json=not nouse_json)
+            selected_versions = select_versions(package, operator, version)
 
-        if verbose:
-            click.echo(f"check {package_name} {selected_versions}")
+            if verbose:
+                click.echo(f"check {package_name} {selected_versions}")
 
-        rc = 0
-        for v in selected_versions:
-            rc |= run_checker(package, v, verbose=verbose, cache=cache)
+            for v in selected_versions:
+                rc |= run_checker(package, v, verbose=verbose, cache=cache)
 
     if rc != 0:
         sys.exit(rc)
@@ -98,19 +101,22 @@ def check(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) -> No
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
 @click.option("--nouse_json", is_flag=True, type=bool)
-@click.argument("package_name")
-def ispep517(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) -> None:
+@click.argument("package_names", nargs=-1)
+def ispep517(
+    verbose: bool, fresh: bool, nouse_json: bool, package_names: List[str]
+) -> None:
+    rc = 0
     with Cache(fresh_index=fresh) as cache:
-        package_name, operator, version = package_name.partition("==")
-        package = parse_index(package_name, cache, use_json=not nouse_json)
-        selected_versions = select_versions(package, operator, version)
+        for package_name in package_names:
+            package_name, operator, version = package_name.partition("==")
+            package = parse_index(package_name, cache, use_json=not nouse_json)
+            selected_versions = select_versions(package, operator, version)
 
-        if verbose:
-            click.echo(f"check {package_name} {selected_versions}")
+            if verbose:
+                click.echo(f"check {package_name} {selected_versions}")
 
-        rc = 0
-        for v in selected_versions:
-            rc |= is_pep517(package, v, verbose=verbose, cache=cache)
+            for v in selected_versions:
+                rc |= is_pep517(package, v, verbose=verbose, cache=cache)
 
     if rc != 0:
         sys.exit(rc)
@@ -120,19 +126,22 @@ def ispep517(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) ->
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
 @click.option("--nouse_json", is_flag=True, type=bool)
-@click.argument("package_name")
-def native(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) -> None:
+@click.argument("package_names", nargs=-1)
+def native(
+    verbose: bool, fresh: bool, nouse_json: bool, package_names: List[str]
+) -> None:
+    rc = 0
     with Cache(fresh_index=fresh) as cache:
-        package_name, operator, version = package_name.partition("==")
-        package = parse_index(package_name, cache, use_json=not nouse_json)
-        selected_versions = select_versions(package, operator, version)
+        for package_name in package_names:
+            package_name, operator, version = package_name.partition("==")
+            package = parse_index(package_name, cache, use_json=not nouse_json)
+            selected_versions = select_versions(package, operator, version)
 
-        if verbose:
-            click.echo(f"check {package_name} {selected_versions}")
+            if verbose:
+                click.echo(f"check {package_name} {selected_versions}")
 
-        rc = 0
-        for v in selected_versions:
-            rc |= has_nativemodules(package, v, verbose=verbose, cache=cache)
+            for v in selected_versions:
+                rc |= has_nativemodules(package, v, verbose=verbose, cache=cache)
 
     if rc != 0:
         sys.exit(rc)
@@ -142,24 +151,27 @@ def native(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) -> N
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
 @click.option("--nouse_json", is_flag=True, type=bool)
-@click.argument("package_name")
-def license(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) -> None:
+@click.argument("package_names", nargs=-1)
+def license(
+    verbose: bool, fresh: bool, nouse_json: bool, package_names: List[str]
+) -> None:
     with Cache(fresh_index=fresh) as cache:
-        package_name, operator, version = package_name.partition("==")
-        package = parse_index(package_name, cache, use_json=not nouse_json)
-        selected_versions = select_versions(package, operator, version)
+        for package_name in package_names:
+            package_name, operator, version = package_name.partition("==")
+            package = parse_index(package_name, cache, use_json=not nouse_json)
+            selected_versions = select_versions(package, operator, version)
 
-        if verbose:
-            click.echo(f"check {package_name} {selected_versions}")
+            if verbose:
+                click.echo(f"check {package_name} {selected_versions}")
 
-        rc = 0
-        for v in selected_versions:
-            license = guess_license(package, v, verbose=verbose, cache=cache)
-            if license is not None and not isinstance(license, str):
-                license = license.shortname
-            if license is None:
-                rc |= 1
-            print(f"{package_name}=={v}: {license or 'Unknown'}")
+            rc = 0
+            for v in selected_versions:
+                license = guess_license(package, v, verbose=verbose, cache=cache)
+                if license is not None and not isinstance(license, str):
+                    license = license.shortname
+                if license is None:
+                    rc |= 1
+                print(f"{package_name}=={v}: {license or 'Unknown'}")
 
     if rc != 0:
         sys.exit(rc)
@@ -171,9 +183,10 @@ def license(verbose: bool, fresh: bool, nouse_json: bool, package_name: str) -> 
 @click.option("--nouse_json", is_flag=True, type=bool)
 @click.option("--dest", help="Directory to store in", default="")
 @click.option(
-    "--index-url", help="Alternate index url (uses HONESTY_INDEX_URL or pypi by default"
+    "--index-url",
+    help="Alternate index url (uses HONESTY_INDEX_URL or pypi by default)",
 )
-@click.argument("package_name")
+@click.argument("package_names", nargs=-1)
 @wrap_async
 async def download(
     verbose: bool,
@@ -181,8 +194,14 @@ async def download(
     nouse_json: bool,
     dest: str,
     index_url: Optional[str],
-    package_name: str,
+    package_names: List[str],
 ) -> None:
+    if dest and len(package_names) > 1:
+        # select_versions() may also result in more than one, but that seems
+        # less common.  If you specify multiple, it still just outputs a path,
+        # but at least they're in the same order.
+        raise click.ClickException("Cannot specify dest if more than one package")
+
     dest_path: Optional[Path]
     if dest:
         dest_path = Path(dest)
@@ -191,20 +210,23 @@ async def download(
         dest_path = None
 
     async with Cache(fresh_index=fresh, index_url=index_url) as cache:
-        package_name, operator, version = package_name.partition("==")
-        package = await async_parse_index(package_name, cache, use_json=not nouse_json)
-        selected_versions = select_versions(package, operator, version)
+        for package_name in package_names:
+            package_name, operator, version = package_name.partition("==")
+            package = await async_parse_index(
+                package_name, cache, use_json=not nouse_json
+            )
+            selected_versions = select_versions(package, operator, version)
 
-        if verbose:
-            click.echo(f"check {package_name} {selected_versions}")
+            if verbose:
+                click.echo(f"check {package_name} {selected_versions}")
 
-        rc = await async_download_many(
-            package,
-            versions=selected_versions,
-            dest=dest_path,
-            cache=cache,
-            verbose=verbose,
-        )
+            rc = await async_download_many(
+                package,
+                versions=selected_versions,
+                dest=dest_path,
+                cache=cache,
+                verbose=verbose,
+            )
 
     sys.exit(rc)
 
@@ -217,7 +239,7 @@ async def download(
 @click.option(
     "--index-url", help="Alternate index url (uses HONESTY_INDEX_URL or pypi by default"
 )
-@click.argument("package_name")
+@click.argument("package_names", nargs=-1)
 @wrap_async
 async def extract(
     verbose: bool,
@@ -225,53 +247,64 @@ async def extract(
     nouse_json: bool,
     dest: str,
     index_url: Optional[str],
-    package_name: str,
+    package_names: List[str],
 ) -> None:
+    if dest and len(package_names) > 1:
+        # select_versions() may also result in more than one, but that seems
+        # less common.  If you specify multiple, it still just outputs a path,
+        # but at least they're in the same order.
+        raise click.ClickException("Cannot specify dest if more than one package")
 
     async with Cache(fresh_index=fresh, index_url=index_url) as cache:
-        package_name, operator, version = package_name.partition("==")
-        package = await async_parse_index(package_name, cache, use_json=not nouse_json)
-        selected_versions = select_versions(package, operator, version)
-        if len(selected_versions) != 1:
-            raise click.ClickException(f"Wrong number of versions: {selected_versions}")
+        for package_name in package_names:
+            package_name, operator, version = package_name.partition("==")
+            package = await async_parse_index(
+                package_name, cache, use_json=not nouse_json
+            )
+            selected_versions = select_versions(package, operator, version)
+            if len(selected_versions) != 1:
+                raise click.ClickException(
+                    f"Wrong number of versions: {selected_versions}"
+                )
 
-        if verbose:
-            click.echo(f"check {package_name} {selected_versions}")
+            if verbose:
+                click.echo(f"check {package_name} {selected_versions}")
 
-        rel = package.releases[selected_versions[0]]
-        sdists = [f for f in rel.files if f.file_type == FileType.SDIST]
-        if not sdists:
-            raise click.ClickException(f"{package.name} no sdists")
+            rel = package.releases[selected_versions[0]]
+            sdists = [f for f in rel.files if f.file_type == FileType.SDIST]
+            if not sdists:
+                raise click.ClickException(f"{package.name} no sdists")
 
-        lp = await cache.async_fetch(pkg=package_name, url=sdists[0].url)
+            lp = await cache.async_fetch(pkg=package_name, url=sdists[0].url)
 
-        archive_root, _ = extract_and_get_names(
-            lp, strip_top_level=True, patterns=("*.*",)
-        )
+            archive_root, _ = extract_and_get_names(
+                lp, strip_top_level=True, patterns=("*.*",)
+            )
 
-        subdirs = tuple(Path(archive_root).iterdir())
-        if dest:
-            for subdir in subdirs:
-                shutil.copytree(subdir, Path(dest, subdir.name))
-        else:
-            dest = archive_root
+            subdirs = tuple(Path(archive_root).iterdir())
+            if dest:
+                for subdir in subdirs:
+                    shutil.copytree(subdir, Path(dest, subdir.name))
+                inner_dest = dest
+            else:
+                inner_dest = archive_root
 
-        # Try to be helpful in the common case that there's a top-level
-        # directory by itself.  Specifying a non-empty dest makes the fallback
-        # less useful.
-        if len(subdirs) == 1:
-            print(os.path.join(dest, subdirs[0].name))
-        else:
-            print(dest)
+            # Try to be helpful in the common case that there's a top-level
+            # directory by itself.  Specifying a non-empty dest makes the fallback
+            # less useful.
+            if len(subdirs) == 1:
+                print(os.path.join(inner_dest, subdirs[0].name))
+            else:
+                print(inner_dest)
 
 
 @cli.command(help="Print age in days for a given release")
 @click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--fresh", "-f", is_flag=True, type=bool)
 @click.option("--base", help="yyyy-mm-dd of when to subtract from")
-@click.argument("package_name")
+@click.argument("package_names", nargs=-1)
 @wrap_async
-async def age(verbose: bool, fresh: bool, base: str, package_name: str,) -> None:
+async def age(verbose: bool, fresh: bool, base: str, package_names: List[str]) -> None:
 
     if base:
         base_date = datetime.strptime(base, "%Y-%m-%d")
@@ -280,16 +313,27 @@ async def age(verbose: bool, fresh: bool, base: str, package_name: str,) -> None
     base_date = base_date.replace(tzinfo=timezone.utc)
 
     async with Cache(fresh_index=fresh) as cache:
-        package_name, operator, version = package_name.partition("==")
-        package = await async_parse_index(package_name, cache, use_json=True)
-        selected_versions = select_versions(package, operator, version)
-        for v in selected_versions:
-            t = min(x.upload_time for x in package.releases[v].files)
-            assert t is not None
+        for package_name in package_names:
+            package_name, operator, version = package_name.partition("==")
+            package = await async_parse_index(package_name, cache, use_json=True)
+            selected_versions = select_versions(package, operator, version)
+            if len(package_names) > 1:
+                prefix = f"{package_name}=="
+            else:
+                prefix = ""
 
-            diff = base_date - t
-            days = diff.days + (diff.seconds / 86400.0)
-            print(f"{v}\t{t.strftime('%Y-%m-%d')}\t{days:.2f}")
+            for v in selected_versions:
+                if package.releases[v].files:
+                    t = min(x.upload_time for x in package.releases[v].files)
+                else:
+                    print(f"{prefix}{v}\t(no files)\t(no files)")
+                    continue
+
+                assert t is not None
+
+                diff = base_date - t
+                days = diff.days + (diff.seconds / 86400.0)
+                print(f"{prefix}{v}\t{t.strftime('%Y-%m-%d')}\t{days:.2f}")
 
 
 def select_versions(
