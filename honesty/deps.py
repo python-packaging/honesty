@@ -4,6 +4,7 @@ import re
 import tarfile
 import zipfile
 from dataclasses import asdict, dataclass, field, replace
+from datetime import datetime
 from io import StringIO
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.request import Request, urlopen
@@ -86,6 +87,7 @@ class DepWalker:
         python_version: str,
         sys_platform: Optional[str] = None,
         only_first: bool = False,
+        trim_newer: Optional[datetime] = None,
     ) -> None:
         self.nodes: Dict[Tuple[str, LooseVersion, Tuple[str, ...]], DepNode] = {}
         self.queue: List[Tuple[Optional[DepNode], str]] = [(None, starting_package)]
@@ -99,6 +101,7 @@ class DepWalker:
             self.markers = replace(self.markers, sys_platform=sys_platform)
         self.python_version = Version(python_version)
         self.only_first = only_first
+        self.trim_newer = trim_newer
 
     def walk(self, include_extras: bool) -> DepNode:
         with Cache(fresh_index=True) as cache:
@@ -205,7 +208,9 @@ class DepWalker:
         package = parse_index(req.name, cache, use_json=True)
         # TODO allow specifying a callback to find installed versions for
         # equivalent of as-needed upgrade instead of decision in a vacuum.
-        v = _find_compatible_version(package, req.specifier, self.python_version)
+        v = _find_compatible_version(
+            package, req.specifier, self.python_version, self.trim_newer
+        )
 
         return package, v
 
@@ -342,7 +347,10 @@ def read_metadata_remote_wheel(url: str) -> List[str]:
 
 
 def _find_compatible_version(
-    package: Package, specifiers: SpecifierSet, python_version: Version
+    package: Package,
+    specifiers: SpecifierSet,
+    python_version: Version,
+    trim_newer: Optional[datetime] = None,
 ) -> LooseVersion:
     # Luckily we can fall back on `packaging` here, because "correct" parsing is a
     # lot of code.  Legacy versions are already likely thrown away in
@@ -353,6 +361,15 @@ def _find_compatible_version(
     # TODO: Give a better error when there's a release with no artifacts.
     possible: List[LooseVersion] = []
     for k, v in package.releases.items():
+        if trim_newer:
+            oldest_file = None
+            for fe in v.files:
+                if oldest_file is None or fe.upload_time < oldest_file:
+                    oldest_file = fe.upload_time
+            # upload_time only available with json, not simple html
+            if oldest_file is not None and oldest_file > trim_newer:
+                continue
+
         # requires_python is set on FileEntry, not PackageRelease
         # arbitrarily take the first one.
         requires_python = None

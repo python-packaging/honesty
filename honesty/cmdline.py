@@ -369,6 +369,7 @@ multiple times (with different versions).
     "--python-version", default="3.7.5", help="Python version x.y.z, always 3 numbers"
 )
 @click.option("--sys-platform", default="linux", help="linux,darwin,win32")
+@click.option("--historical", help="yyyy-mm-dd of a historical date to simulate")
 @click.argument("package_name")
 def deps(
     include_extras: bool,
@@ -378,8 +379,17 @@ def deps(
     python_version: str,
     sys_platform: str,
     package_name: str,
+    historical: str,
 ) -> None:
     logging.basicConfig(level=logging.DEBUG if verbose else logging.WARNING)
+
+    trim_newer: Optional[datetime]
+    if historical:
+        trim_newer = datetime.strptime(historical, "%Y-%m-%d").replace(
+            tzinfo=timezone.utc
+        )
+    else:
+        trim_newer = None
 
     # TODO platform option
     # TODO something that understands pep 517 requirements for building
@@ -390,7 +400,11 @@ def deps(
     seen: Set[Tuple[str, Optional[Tuple[str, ...]], LooseVersion]] = set()
     assert python_version.count(".") == 2
     deptree = DepWalker(
-        package_name, python_version, sys_platform, only_first=pick
+        package_name,
+        python_version,
+        sys_platform,
+        only_first=pick,
+        trim_newer=trim_newer,
     ).walk(include_extras)
     # TODO record constraints on DepEdge, or put in lib to avoid this nonsense
     fake_root = DepNode("", version=Version("0"), deps=[DepEdge(target=deptree)])
