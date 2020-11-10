@@ -115,8 +115,8 @@ class Cache:
 
         return output_file
 
-    def _is_index_filename(self, name: Optional[str]) -> bool:
-        return name in (None, "json")
+    def _is_index_filename(self, name: str) -> bool:
+        return name in ("", "json")
 
     def __enter__(self) -> "Cache":
         return self

@@ -116,6 +116,6 @@ class CacheTest(unittest.TestCase):
 
     def test_is_index(self) -> None:
         with Cache() as cache:
-            self.assertTrue(cache._is_index_filename(None))
+            self.assertTrue(cache._is_index_filename(""))
             self.assertTrue(cache._is_index_filename("json"))
             self.assertFalse(cache._is_index_filename("foo-0.1.tar.gz"))
