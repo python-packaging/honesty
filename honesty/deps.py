@@ -488,21 +488,22 @@ class Extras:
 def print_flat_deps(
     deps: DepNode, seen: Set[Tuple[str, Optional[Tuple[str, ...]], LooseVersion]]
 ) -> None:
-    # Simple postorder, assumes no cycles.
+    # Simple postorder, assumes no cycles (fixtures/testtools)
     for x in deps.deps:
-        if x.target.deps:
-            print_flat_deps(x.target, seen)
-
         key = (
             x.target.name,
             tuple(sorted(x.target.dep_extras)) if x.target.dep_extras else None,
             x.target.version,
         )
+        flag = key in seen
+        seen.add(key)
+
+        if x.target.deps:
+            print_flat_deps(x.target, seen)
         dep_extras = (
             f"[{', '.join(sorted(x.target.dep_extras))}]" if x.target.dep_extras else ""
         )
-        if key not in seen:
-            seen.add(key)
+        if not flag:
             # TODO markers
             click.echo(f"{x.target.name}{dep_extras}=={x.target.version}")
 
