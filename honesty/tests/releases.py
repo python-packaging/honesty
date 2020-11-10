@@ -230,6 +230,9 @@ class ReleasesTest(unittest.TestCase):
         self.assertEqual(
             ("psutil", "5.3.0"), guess_version("psutil-5.3.0.win32-py3.6.exe"),
         )
+        self.assertEqual(
+            ("simplejson", "3.12.0"), guess_version("simplejson-3.12.0.win32.exe")
+        )
 
     def test_guess_file_type(self) -> None:
         expected = [

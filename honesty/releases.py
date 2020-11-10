@@ -17,7 +17,8 @@ CHECKSUM_RE = re.compile(
 )
 NUMERIC_VERSION = re.compile(
     r"^(?P<package>.*?)-(?P<version>[0-9][^-]*?)"
-    r"(?P<suffix>(?P<platform>\.macosx|\.linux|\.cygwin|\.win(?:32|xp|))?-.*)?$"
+    r"(?P<suffix>(?P<platform>\.macosx|\.linux|\.cygwin|\.win(?:xp)?(?:32)?)?"
+    r"(?:|-.*))?$"
 )
 
 ISO8601_FORMAT = "%Y-%m-%dT%H:%M:%S"
@@ -91,7 +92,7 @@ def guess_file_type(filename: str) -> FileType:
         return FileType.UNKNOWN
 
 
-@dataclass
+@dataclass(order=True)
 class FileEntry:
     url: str  # https://files.pythonhosted.../foo-1.0.tgz
     basename: str  # foo-1.0.tgz
@@ -186,6 +187,7 @@ def remove_suffix(basename: str) -> str:
         ".msi",
         ".rpm",
         ".dmg",
+        ".tgz",
     ]
     for s in suffixes:
         if basename.endswith(s):
@@ -266,6 +268,11 @@ async def async_parse_index(
             package.requires = obj["requires_dist"]
 
         for k, release in obj["releases"].items():
+            if not release:
+                # Some pre-warehouse projects have releases with no files; don't
+                # bother because there's nothing to install, and they don't show
+                # up in the simple index either.
+                continue
             pv = parse_version(k)
             releases[pv] = PackageRelease(version=k, parsed_version=pv, files=[])
             for release_file in release:
@@ -276,5 +283,7 @@ async def async_parse_index(
                         raise
 
     package.releases = dict(sorted(releases.items()))
+    for rel in package.releases.values():
+        rel.files.sort()
 
     return package
