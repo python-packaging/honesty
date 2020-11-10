@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Dict, List, Set, Tuple, Union
 
 import click
-
 from infer_license.api import guess_file
 from infer_license.types import License
 

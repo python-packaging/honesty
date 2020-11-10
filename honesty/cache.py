@@ -9,9 +9,8 @@ import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import appdirs
-
 import aiohttp
+import appdirs
 
 
 def cache_dir(pkg: str) -> Path:
