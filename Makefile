@@ -33,6 +33,10 @@ lint:
 	python -m flake8 $(SOURCES)
 	mypy --strict honesty
 
+.PHONY: pessimist
+pessimist:
+	python -m pessimist --fast --requirements= -c 'python -m honesty --help' .
+
 .PHONY: release
 release:
 	rm -rf dist
