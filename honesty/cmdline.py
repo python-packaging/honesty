@@ -21,7 +21,7 @@ from .releases import FileType, Package, async_parse_index, parse_index
 from .version import LooseVersion, Version, parse_version
 
 try:
-    from .__version__ import __version__  # type: ignore
+    from .__version__ import version as __version__  # type: ignore
 except ImportError:
     __version__ = "dev"
 
