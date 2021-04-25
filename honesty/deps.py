@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 from zipfile import ZipFile
 
 import click
-from packaging.markers import Marker, Variable
+from packaging.markers import Marker
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 from pkginfo.distribution import parse as distribution_parse
@@ -188,7 +188,7 @@ class DepWalker:
                     extra_str = None
                     if dep_req.marker:
                         for t in dep_req.marker._markers:
-                            if t[0] == Variable("extra"):
+                            if t[0] == "extra":
                                 assert str(t[1]) == "=="
                                 extra_str = str(t[2])
 

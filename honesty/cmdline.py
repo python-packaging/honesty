@@ -330,7 +330,11 @@ async def age(verbose: bool, fresh: bool, base: str, package_names: List[str]) -
 
             for v in selected_versions:
                 if package.releases[v].files:
-                    t = min(x.upload_time for x in package.releases[v].files)
+                    t = min(
+                        x.upload_time
+                        for x in package.releases[v].files
+                        if x.upload_time is not None
+                    )
                 else:
                     print(f"{prefix}{v}\t(no files)\t(no files)")
                     continue
