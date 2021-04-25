@@ -95,7 +95,8 @@ class DepWalker:
         # TODO support unusual versions.
         t = ".".join(python_version.split(".")[:2])
         self.markers = EnvironmentMarkers(
-            python_version=t, python_full_version=python_version,
+            python_version=t,
+            python_full_version=python_version,
         )
         if sys_platform is not None:
             self.markers = replace(self.markers, sys_platform=sys_platform)
@@ -158,7 +159,13 @@ class DepWalker:
                 if parent is None:
                     self.root = node
                 else:
-                    parent.deps.append(DepEdge(node, str(req.specifier), req.marker,))
+                    parent.deps.append(
+                        DepEdge(
+                            node,
+                            str(req.specifier),
+                            req.marker,
+                        )
+                    )
 
                 if node.done:
                     continue
@@ -534,7 +541,10 @@ def print_deps(
             color = "red" if not x.target.has_sdist else "green"
             click.echo(
                 prefix
-                + click.style(x.target.name, fg=color,)
+                + click.style(
+                    x.target.name,
+                    fg=color,
+                )
                 + f"{dep_extras} (=={x.target.version}){' ; ' + str(x.markers) if x.markers else ''} via "
                 + click.style(x.constraints or "*", fg="yellow")
                 + click.style(" no whl" if not x.target.has_bdist else "", fg="blue")
