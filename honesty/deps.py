@@ -42,7 +42,7 @@ class DepNode:
 class DepEdge:
     target: DepNode
     constraints: Optional[str] = None
-    markers: Optional[str] = None
+    markers: Optional[Marker] = None
 
 
 @dataclass
