@@ -25,7 +25,8 @@ from ..version import Version
 class ConvertSdistRequiresTest(unittest.TestCase):
     def test_all(self) -> None:
         self.assertEqual(
-            ["a"], convert_sdist_requires("a\n"),
+            ["a"],
+            convert_sdist_requires("a\n"),
         )
         self.assertEqual(
             ["a; python_version < '3.4'"],
@@ -59,7 +60,10 @@ FOO_PACKAGE = Package(
 )
 
 BAR_PACKAGE = Package(
-    name="bar", releases={v1: PackageRelease("1.0", v1, [], requires=["foo"]),}
+    name="bar",
+    releases={
+        v1: PackageRelease("1.0", v1, [], requires=["foo"]),
+    },
 )
 
 
@@ -138,7 +142,10 @@ class TestSeekableHttpFile(unittest.TestCase):
 
 
 A_PACKAGE = Package(
-    name="a", releases={v1: PackageRelease("1.0", v1, [], ["b (==1.0)"]),}
+    name="a",
+    releases={
+        v1: PackageRelease("1.0", v1, [], ["b (==1.0)"]),
+    },
 )
 B_PACKAGE = Package(
     name="b",
@@ -147,7 +154,12 @@ B_PACKAGE = Package(
         v2: PackageRelease("2.0", v2, [], []),
     },
 )
-C_PACKAGE = Package(name="c", releases={v1_1: PackageRelease("1.1", v1_1, [], []),})
+C_PACKAGE = Package(
+    name="c",
+    releases={
+        v1_1: PackageRelease("1.1", v1_1, [], []),
+    },
+)
 
 
 def get_abc_walked() -> DepWalker:

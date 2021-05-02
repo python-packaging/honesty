@@ -20,7 +20,8 @@ def cache_dir(pkg: str) -> Path:
 
 
 DEFAULT_CACHE_DIR = os.path.join(
-    appdirs.user_cache_dir("honesty", "python-packaging"), "pypi",
+    appdirs.user_cache_dir("honesty", "python-packaging"),
+    "pypi",
 )
 DEFAULT_HONESTY_INDEX_URL = "https://pypi.org/simple/"
 BUFFER_SIZE = 4096 * 1024  # 4M

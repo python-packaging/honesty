@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 from zipfile import ZipFile
 
 import click
-from packaging.markers import Marker, Variable
+from packaging.markers import Marker
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 from pkginfo.distribution import parse as distribution_parse
@@ -42,7 +42,7 @@ class DepNode:
 class DepEdge:
     target: DepNode
     constraints: Optional[str] = None
-    markers: Optional[str] = None
+    markers: Optional[Marker] = None
 
 
 @dataclass
@@ -95,7 +95,8 @@ class DepWalker:
         # TODO support unusual versions.
         t = ".".join(python_version.split(".")[:2])
         self.markers = EnvironmentMarkers(
-            python_version=t, python_full_version=python_version,
+            python_version=t,
+            python_full_version=python_version,
         )
         if sys_platform is not None:
             self.markers = replace(self.markers, sys_platform=sys_platform)
@@ -158,7 +159,13 @@ class DepWalker:
                 if parent is None:
                     self.root = node
                 else:
-                    parent.deps.append(DepEdge(node, str(req.specifier), req.marker,))
+                    parent.deps.append(
+                        DepEdge(
+                            node,
+                            str(req.specifier),
+                            req.marker,
+                        )
+                    )
 
                 if node.done:
                     continue
@@ -181,7 +188,7 @@ class DepWalker:
                     extra_str = None
                     if dep_req.marker:
                         for t in dep_req.marker._markers:
-                            if t[0] == Variable("extra"):
+                            if t[0] == "extra":
                                 assert str(t[1]) == "=="
                                 extra_str = str(t[2])
 
@@ -534,7 +541,10 @@ def print_deps(
             color = "red" if not x.target.has_sdist else "green"
             click.echo(
                 prefix
-                + click.style(x.target.name, fg=color,)
+                + click.style(
+                    x.target.name,
+                    fg=color,
+                )
                 + f"{dep_extras} (=={x.target.version}){' ; ' + str(x.markers) if x.markers else ''} via "
                 + click.style(x.constraints or "*", fg="yellow")
                 + click.style(" no whl" if not x.target.has_bdist else "", fg="blue")
