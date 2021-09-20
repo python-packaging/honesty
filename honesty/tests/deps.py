@@ -104,6 +104,44 @@ class FindCompatibleVersionTest(unittest.TestCase):
         v = _find_compatible_version(FOO_PACKAGE, SpecifierSet(""), four)
         self.assertEqual(v1, v)
 
+    def test_respect_already_chosen(self) -> None:
+        three = Version("3.7.5")
+        # This returns v1 with no already_chosen
+        v = _find_compatible_version(
+            FOO_PACKAGE, SpecifierSet(""), three, already_chosen={"foo": Version("2.0")}
+        )
+        self.assertEqual(v2, v)
+
+    def test_current_version_callback(self) -> None:
+        three = Version("3.7.5")
+
+        def current_version(p: str) -> str:
+            return "2.0"
+
+        # This would normally find v1 ("1.0") on its own
+        v = _find_compatible_version(
+            FOO_PACKAGE,
+            SpecifierSet(""),
+            three,
+            current_versions_callback=current_version,
+        )
+        self.assertEqual(Version("2.0"), v)
+
+    def test_current_version_callback_nonpublic(self) -> None:
+        three = Version("3.7.5")
+
+        def current_version(p: str) -> str:
+            return "2.99"
+
+        # This would normally find v1 ("1.0") on its own
+        v = _find_compatible_version(
+            FOO_PACKAGE,
+            SpecifierSet(""),
+            three,
+            current_versions_callback=current_version,
+        )
+        self.assertEqual(Version("2.99"), v)
+
 
 class TestSeekableHttpFile(unittest.TestCase):
     def test_live(self) -> None:

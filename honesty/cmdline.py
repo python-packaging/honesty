@@ -374,6 +374,7 @@ multiple times (with different versions).
 )
 @click.option("--sys-platform", default="linux", help="linux,darwin,win32")
 @click.option("--historical", help="yyyy-mm-dd of a historical date to simulate")
+@click.option("--have", help="pkg==ver to assume already installed", multiple=True)
 @click.argument("package_name")
 def deps(
     include_extras: bool,
@@ -384,6 +385,7 @@ def deps(
     sys_platform: str,
     package_name: str,
     historical: str,
+    have: List[str],
 ) -> None:
     logging.basicConfig(level=logging.DEBUG if verbose else logging.WARNING)
 
@@ -394,6 +396,13 @@ def deps(
         )
     else:
         trim_newer = None
+
+    def current_versions_callback(p: str) -> Optional[str]:
+        for x in have:
+            k, _, v = x.partition("==")
+            if k == p:
+                # TODO canonicalize
+                return v
 
     # TODO platform option
     # TODO something that understands pep 517 requirements for building
@@ -409,7 +418,7 @@ def deps(
         sys_platform,
         only_first=pick,
         trim_newer=trim_newer,
-    ).walk(include_extras)
+    ).walk(include_extras, current_versions_callback=current_versions_callback)
     # TODO record constraints on DepEdge, or put in lib to avoid this nonsense
     fake_root = DepNode("", version=Version("0"), deps=[DepEdge(target=deptree)])
     if pick:

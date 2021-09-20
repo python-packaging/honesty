@@ -6,7 +6,7 @@ import zipfile
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 from io import StringIO
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Callable
 from urllib.request import Request, urlopen
 from zipfile import ZipFile
 
@@ -22,6 +22,7 @@ from .releases import FileType, Package, parse_index
 from .version import LooseVersion, Version
 
 LOG = logging.getLogger(__name__)
+VersionCallback = Callable[[str], Optional[str]]
 
 # These correlate roughly to the node and edge terminology used by graphviz.
 
@@ -80,6 +81,10 @@ class Constraint:
     markers: Optional[str]  # If set, starts with ';'
 
 
+def _all_current_versions_unknown(cn: str) -> Optional[str]:
+    return None
+
+
 class DepWalker:
     def __init__(
         self,
@@ -104,7 +109,16 @@ class DepWalker:
         self.only_first = only_first
         self.trim_newer = trim_newer
 
-    def walk(self, include_extras: bool) -> DepNode:
+    def walk(
+        self,
+        include_extras: bool,
+        current_versions_callback: Optional[VersionCallback] = None,
+    ) -> DepNode:
+
+        if current_versions_callback is None:
+            current_versions_callback = _all_current_versions_unknown
+        already_chosen: Dict[str, LooseVersion] = {}
+
         with Cache(fresh_index=True) as cache:
             while self.queue:
                 parent, item = self.queue.pop(0)
@@ -122,21 +136,36 @@ class DepWalker:
                     LOG.debug(f"Skip {req.name} {req.marker}")
                     continue
 
-                (package, v) = self._pick_a_version(req, cache)
+                (package, v) = self._pick_a_version(
+                    req, cache, already_chosen, current_versions_callback
+                )
                 LOG.debug(f"Chose {v}")
 
-                has_sdist = any(
-                    fe.file_type == FileType.SDIST for fe in package.releases[v].files
-                )
-                # TODO: consider eggs or bdist_dumb as valid?  Can pip still use them?
-                has_bdist = any(
-                    fe.file_type == FileType.BDIST_WHEEL
-                    for fe in package.releases[v].files
-                )
+                if package is not None and v in package.releases:
+                    has_sdist = any(
+                        fe.file_type == FileType.SDIST
+                        for fe in package.releases[v].files
+                    )
+                    # TODO: consider eggs or bdist_dumb as valid?  Can pip still use them?
+                    has_bdist = any(
+                        fe.file_type == FileType.BDIST_WHEEL
+                        for fe in package.releases[v].files
+                    )
 
-                # TODO: consider canonicalizing name
-                t: Tuple[str, ...] = tuple(sorted(req.extras))
-                key = (package.name, v, t)
+                    # TODO: consider canonicalizing name
+                    t: Tuple[str, ...] = tuple(sorted(req.extras))
+                    key = (package.name, v, t)
+                else:
+                    # Reuse existing version
+                    has_sdist = None
+                    has_bdist = None
+                    # TODO verify this is canonical
+                    key = (req.name, v, None)
+
+                cur = already_chosen.get(key[0])
+                if cur is not None and cur != key[1]:
+                    LOG.warning(f"Multiple versions for {key[0]}: {cur} and {key[1]}")
+                already_chosen[key[0]] = key[1]
 
                 # TODO: This can be parallelized in threads; we can't just do
                 # this all as async because the partial http fetches are done
@@ -205,18 +234,30 @@ class DepWalker:
         return bool(marker.evaluate(env))
 
     def _pick_a_version(
-        self, req: Requirement, cache: Cache
+        self,
+        req: Requirement,
+        cache: Cache,
+        already_chosen: Dict[str, LooseVersion],
+        currently_installed_callback: VersionCallback,
     ) -> Tuple[Package, LooseVersion]:
         """
         Given `attrs (==0.1.0)` returns the corresponding release.
 
         Supports multiple comparisons, and prefers the most recent version.
+
+        If you provide a `currently_installed_callback`, it should return the
+        current version (as a string) or None.  If you return a non-public
+        version, honesty will not use it.  (This is expected to change in a
+        future release.)
         """
         package = parse_index(req.name, cache, use_json=True)
-        # TODO allow specifying a callback to find installed versions for
-        # equivalent of as-needed upgrade instead of decision in a vacuum.
         v = _find_compatible_version(
-            package, req.specifier, self.python_version, self.trim_newer
+            package,
+            req.specifier,
+            self.python_version,
+            self.trim_newer,
+            already_chosen,
+            currently_installed_callback,
         )
 
         return package, v
@@ -226,6 +267,10 @@ class DepWalker:
     ) -> Sequence[str]:
         # This uses pkginfo same as poetry, but we try to be a lot more efficient at
         # only downloading what we need to.  This is not a solver.
+
+        if v not in package.releases:
+            # Current version is non-public
+            return []
 
         tmp = package.releases[v].requires
         if tmp is not None:
@@ -358,6 +403,8 @@ def _find_compatible_version(
     specifiers: SpecifierSet,
     python_version: Version,
     trim_newer: Optional[datetime] = None,
+    already_chosen: Optional[Dict[str, LooseVersion]] = None,
+    current_versions_callback: Optional[VersionCallback] = None,
 ) -> LooseVersion:
     # Luckily we can fall back on `packaging` here, because "correct" parsing is a
     # lot of code.  Legacy versions are already likely thrown away in
@@ -367,6 +414,7 @@ def _find_compatible_version(
     # error when the package is completely incompatible.
     # TODO: Give a better error when there's a release with no artifacts.
     possible: List[LooseVersion] = []
+
     for k, v in package.releases.items():
         if trim_newer:
             oldest_file = None
@@ -391,15 +439,29 @@ def _find_compatible_version(
     if not possible:
         raise ValueError(f"{package.name} incompatible with {python_version}")
 
+    # Insert the current version if we didn't above.  This uses requires_python
+    # filtering logic, unless it's a non-public version.
+    cur = current_versions_callback and current_versions_callback(package.name)
+    cur_v: Optional[Version] = None
+    if cur:
+        cur_v = Version(cur)
+    if cur_v and cur_v not in package.releases:
+        possible.append(cur_v)
+
     # specifiers.filter returns Union[Version, LegacyVersion, str] but we never
     # pass in a str.
-    possible = list(specifiers.filter(possible))  # type: ignore
+    possible = list(specifiers.filter(possible))
     if not possible:
         raise ValueError(
             f"{package.name} has no {requires_python} compatible release with constraint {specifiers}"
         )
+    ac = already_chosen and already_chosen.get(package.name)
+    xform_possible: List[Tuple[bool, bool, int, LooseVersion]] = sorted(
+        (p == ac, p == cur_v, i, p) for (i, p) in enumerate(possible)
+    )
+    LOG.debug(f"  possible {xform_possible!r}")
 
-    return possible[-1]
+    return xform_possible[-1][3]
 
 
 CONTENT_RANGE_RE = re.compile(r"bytes (\d+)-(\d+)/(\d+)")
