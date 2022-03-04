@@ -3,6 +3,7 @@ import os.path
 import time
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Union
+import toml
 
 import click
 from infer_license.api import guess_file
@@ -113,11 +114,13 @@ def is_pep517(
         if srcname.endswith("pyproject.toml"):
             with open(os.path.join(archive_root, relname), "rb") as buf:
                 data = buf.read().replace(b"\r\n", b"\n")
-            if b"[build-system]" in data:
-                click.echo(f"{package.name} build-system {relname}")
-                return True
-            else:
-                click.echo(f"{package.name} has-toml {relname}")
+
+            t = toml.loads(data.decode("utf-8"))
+            bb = t.get("build-system", {}).get("build-backend", "?")
+            click.echo(f"{package.name} {bb}")
+            break
+    else:
+        click.echo(f"{package.name} no-pyproject-toml")
     return False
 
 

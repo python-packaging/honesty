@@ -1,3 +1,5 @@
+import aiohttp.client_exceptions
+import hashlib
 import asyncio
 import functools
 import json
@@ -30,8 +32,7 @@ except ImportError:
 def wrap_async(coro: Any) -> Any:
     @functools.wraps(coro)
     def inner(*args: Any, **kwargs: Any) -> Any:
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(coro(*args, **kwargs))
+        return asyncio.run(coro(*args, **kwargs))
 
     return inner
 
@@ -57,13 +58,17 @@ def cli() -> None:
 @click.option("--fresh", "-f", is_flag=True, type=bool)
 @click.option("--nouse_json", is_flag=True, type=bool)
 @click.option("--as_json", is_flag=True, type=bool)
+@click.option("--justver", is_flag=True, type=bool)
 @click.argument("package_name")
 @wrap_async
-async def list(fresh: bool, nouse_json: bool, as_json: bool, package_name: str) -> None:
+async def list(fresh: bool, nouse_json: bool, as_json: bool, justver: bool, package_name: str) -> None:
     async with Cache(fresh_index=fresh) as cache:
         package = await async_parse_index(package_name, cache, use_json=not nouse_json)
 
-    if as_json:
+    if justver:
+        selected_versions = select_versions(package, "==", "")
+        print(f"{package_name}=={selected_versions[-1]}")
+    elif as_json:
         for k, v in package.releases.items():
             print(json.dumps(v, default=dataclass_default, sort_keys=True))
     else:
@@ -218,9 +223,14 @@ async def download(
     async with Cache(fresh_index=fresh, index_url=index_url) as cache:
         for package_name in package_names:
             package_name, operator, version = package_name.partition("==")
-            package = await async_parse_index(
-                package_name, cache, use_json=not nouse_json
-            )
+            try:
+                package = await async_parse_index(
+                    package_name, cache, use_json=not nouse_json
+                )
+            except aiohttp.client_exceptions.ClientResponseError as e:
+                click.secho(f"Error: {package_name} is a 404", fg="red")
+                continue
+
             selected_versions = select_versions(package, operator, version)
 
             if verbose:
@@ -344,6 +354,33 @@ async def age(verbose: bool, fresh: bool, base: str, package_names: List[str]) -
                 diff = base_date - t
                 days = diff.days + (diff.seconds / 86400.0)
                 print(f"{prefix}{v}\t{t.strftime('%Y-%m-%d')}\t{days:.2f}")
+
+
+@cli.command()
+def checkcache() -> None:
+    for dirpath, dirnames, filenames in os.walk(os.path.expanduser("~/.cache/honesty/pypi")):
+        if "json" in filenames:
+            archives = [f for f in filenames if not (f == "json" or
+            f.startswith("json.") or f.endswith(".json"))]
+            obj = json.loads(Path(dirpath, "json").read_text())
+
+            if "releases" not in obj:
+                if tuple(obj.keys()) != ("last_serial",):
+                    print(f"{dirpath}/json invalid {obj.keys()}")
+                continue
+
+            for lst in obj["releases"].values():
+                for i in lst:
+                    filename = os.path.basename(i["url"])
+                    if filename in archives:
+                        h = hashlib.sha256()
+                        h.update(Path(dirpath, filename).read_bytes())
+                        archives.remove(filename)
+                        if i['digests']['sha256'] != h.hexdigest():
+                            click.secho(f"{dirpath}/{filename} bad digest",
+                            fg="red")
+            if archives:
+                print(f"{dirpath} orphans {archives}")
 
 
 @cli.command(
