@@ -117,6 +117,7 @@ class DepWalker:
         self,
         include_extras: bool,
         current_versions_callback: Optional[VersionCallback] = None,
+        use_json: bool = True,
     ) -> DepNode:
 
         if current_versions_callback is None:
@@ -143,7 +144,11 @@ class DepWalker:
                     continue
 
                 (package, v) = self._pick_a_version(
-                    req, cache, already_chosen, current_versions_callback
+                    req,
+                    cache,
+                    already_chosen,
+                    current_versions_callback,
+                    use_json=use_json,
                 )
                 LOG.debug(f"Chose {v}")
 
@@ -245,6 +250,7 @@ class DepWalker:
         cache: Cache,
         already_chosen: Dict[str, Version],
         currently_installed_callback: VersionCallback,
+        use_json: bool = True,
     ) -> Tuple[Package, Version]:
         """
         Given `attrs (==0.1.0)` returns the corresponding release.
@@ -256,7 +262,7 @@ class DepWalker:
         version, honesty will not use it.  (This is expected to change in a
         future release.)
         """
-        package = parse_index(req.name, cache, use_json=True)
+        package = parse_index(req.name, cache, use_json=use_json)
         v = _find_compatible_version(
             package,
             req.specifier,

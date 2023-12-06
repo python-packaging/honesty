@@ -425,6 +425,7 @@ multiple times (with different versions).
 @click.option("--sys-platform", default="linux", help="linux,darwin,win32")
 @click.option("--historical", help="yyyy-mm-dd of a historical date to simulate")
 @click.option("--have", help="pkg==ver to assume already installed", multiple=True)
+@click.option("--use-json", is_flag=True, default=True, show_default=True)
 @click.argument("package_name")
 def deps(
     include_extras: bool,
@@ -436,6 +437,7 @@ def deps(
     package_name: str,
     historical: str,
     have: List[str],
+    use_json: bool,
 ) -> None:
     logging.basicConfig(level=logging.DEBUG if verbose else logging.WARNING)
 
@@ -469,7 +471,11 @@ def deps(
         sys_platform,
         only_first=pick,
         trim_newer=trim_newer,
-    ).walk(include_extras, current_versions_callback=current_versions_callback)
+    ).walk(
+        include_extras,
+        current_versions_callback=current_versions_callback,
+        use_json=use_json,
+    )
     # TODO record constraints on DepEdge, or put in lib to avoid this nonsense
     fake_root = DepNode("", version=Version("0"), deps=[DepEdge(target=deptree)])
     if pick:
