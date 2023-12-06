@@ -25,9 +25,7 @@ from .deps import DepEdge, DepNode, DepWalker, print_deps, print_flat_deps
 from .releases import async_parse_index, FileType, Package, parse_index
 
 try:
-    from .__version__ import (  # type: ignore[unused-ignore,attr-defined]
-        version as __version__,
-    )
+    from .__version__ import version as __version__
 except ImportError:
     __version__ = "dev"
 

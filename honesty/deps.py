@@ -386,12 +386,12 @@ def convert_sdist_requires(data: str) -> List[str]:
     return lst
 
 
-def read_metadata_wheel(path: "os.PathLike[str]") -> List[str]:
-    tmp: List[str] = list(Wheel(str(path)).requires_dist)
+def read_metadata_wheel(path: "os.PathLike[str]") -> Sequence[str]:
+    tmp: Sequence[str] = Wheel(str(path)).requires_dist
     return tmp
 
 
-def read_metadata_remote_wheel(url: str) -> List[str]:
+def read_metadata_remote_wheel(url: str) -> Sequence[str]:
     # TODO: Convince mypy that SeekableHttpFile is an IO[Bytes]
     f = SeekableHttpFile(url)
     z = ZipFile(f)  # type: ignore
@@ -405,7 +405,7 @@ def read_metadata_remote_wheel(url: str) -> List[str]:
     # requires a filename on disk.
     data = z.read(metadata_names[0])
     metadata = distribution_parse(StringIO(data.decode()))
-    return metadata.get_all("Requires-Dist")  # type: ignore
+    return metadata.get_all("Requires-Dist")
 
     raise ValueError("No metadata")
 
@@ -444,10 +444,12 @@ def _find_compatible_version(
             if fe.requires_python:
                 requires_python = SpecifierSet(fe.requires_python)
                 break
+
         # LOG.debug(f"CHECK {package.name} {python_version} against {requires_python}: {k}")
         if not requires_python or python_version in requires_python:
-            # LOG.debug("  include")
+            LOG.debug("  include %s", k)
             possible.append(k)
+
     if not possible:
         raise ValueError(f"{package.name} incompatible with {python_version}")
 
@@ -465,7 +467,7 @@ def _find_compatible_version(
     possible = list(specifiers.filter(possible))
     if not possible:
         raise ValueError(
-            f"{package.name} has no {requires_python} compatible release with constraint {specifiers}"
+            f"{package.name} has no {python_version}-compatible release with constraint {specifiers}"
         )
     ac = already_chosen and already_chosen.get(package.name)
     xform_possible: List[Tuple[bool, bool, int, Version]] = sorted(
