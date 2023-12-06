@@ -295,7 +295,7 @@ class DepWalker:
         for fe in package.releases[v].files:
             if fe.file_type == FileType.BDIST_WHEEL:
                 LOG.info(f"wheel {fe.url} {fe.size}")
-                if fe.size is None or fe.size > 20000000:
+                if fe.size is not None and fe.size > 20000000:
                     # Gigantic wheels we'll pay the remote read penalty
                     # the 'or ()' is needed for numpy
                     return read_metadata_remote_wheel(fe.url) or ()
