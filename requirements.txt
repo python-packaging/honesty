@@ -5,3 +5,4 @@ dataclasses==0.8 ; python_version < '3.7'
 infer-license==0.0.7
 packaging==23.1
 pkginfo==1.7.0
+toml==0.10.2

@@ -9,15 +9,15 @@ from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import Version
 
 from ..deps import (
+    _find_compatible_version,
+    convert_sdist_requires,
     DepEdge,
     DepNode,
     DepWalker,
     EnvironmentMarkers,
-    SeekableHttpFile,
-    _find_compatible_version,
-    convert_sdist_requires,
     print_deps,
     print_flat_deps,
+    SeekableHttpFile,
 )
 from ..releases import FileEntry, FileType, Package, PackageRelease
 

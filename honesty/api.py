@@ -92,6 +92,9 @@ def pick_sdist(package_name: str, release: PackageRelease) -> FileEntry:
 
     # Prefer .tar.gz over .zip
     for f in release.files:
+        # if f.file_type == FileType.BDIST_WHEEL:
+        #     return f
+        # # FIXME
         if f.file_type == FileType.SDIST and (
             pick is None or pick.basename.endswith(".zip")
         ):
@@ -101,3 +104,11 @@ def pick_sdist(package_name: str, release: PackageRelease) -> FileEntry:
         raise Exception(f"{package_name}=={release.parsed_version} no sdist")
 
     return pick
+
+
+def pick_wheel(package_name: str, release: PackageRelease) -> FileEntry:
+    for f in release.files:
+        if f.file_type == FileType.BDIST_WHEEL:
+            return f
+
+    raise Exception(f"{package_name}=={release.parsed_version} no whl")

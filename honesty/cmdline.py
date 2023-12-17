@@ -1,7 +1,6 @@
-import aiohttp.client_exceptions
-import hashlib
 import asyncio
 import functools
+import hashlib
 import json
 import logging
 import os.path
@@ -11,6 +10,8 @@ from datetime import datetime, timezone
 from enum import Enum, IntEnum
 from pathlib import Path
 from typing import Any, List, Optional, Set, Tuple
+
+import aiohttp.client_exceptions
 
 import click
 
@@ -63,7 +64,9 @@ def cli() -> None:
 @click.option("--justver", is_flag=True, type=bool)
 @click.argument("package_name")
 @wrap_async
-async def list(fresh: bool, nouse_json: bool, as_json: bool, justver: bool, package_name: str) -> None:
+async def list(
+    fresh: bool, nouse_json: bool, as_json: bool, justver: bool, package_name: str
+) -> None:
     async with Cache(fresh_index=fresh) as cache:
         package = await async_parse_index(package_name, cache, use_json=not nouse_json)
 
@@ -222,6 +225,7 @@ async def download(
     else:
         dest_path = None
 
+    rc = 0
     async with Cache(fresh_index=fresh, index_url=index_url) as cache:
         for package_name in package_names:
             package_name, operator, version = package_name.partition("==")
@@ -230,7 +234,8 @@ async def download(
                     package_name, cache, use_json=not nouse_json
                 )
             except aiohttp.client_exceptions.ClientResponseError as e:
-                click.secho(f"Error: {package_name} is a 404", fg="red")
+                click.secho(f"Error: {package_name} got {e!r}", fg="red")
+                rc |= 2
                 continue
 
             selected_versions = select_versions(package, operator, version)
@@ -238,7 +243,8 @@ async def download(
             if verbose:
                 click.echo(f"check {package_name} {selected_versions}")
 
-            rc = await async_download_many(
+            # any exception here sets the 1 bit
+            rc |= await async_download_many(
                 package,
                 versions=selected_versions,
                 dest=dest_path,
@@ -290,10 +296,12 @@ async def extract(
 
             rel = package.releases[selected_versions[0]]
             sdists = [f for f in rel.files if f.file_type == FileType.SDIST]
-            if not sdists:
-                raise click.ClickException(f"{package.name} no sdists")
+            wheels = [f for f in rel.files if f.file_type == FileType.BDIST_WHEEL]
+            if not sdists and not wheels:
+                raise click.ClickException(f"{package.name} no sdists or wheels")
 
-            lp = await cache.async_fetch(pkg=package_name, url=sdists[0].url)
+            chosen = sdists + wheels
+            lp = await cache.async_fetch(pkg=package_name, url=chosen[0].url)
 
             archive_root, _ = extract_and_get_names(
                 lp, strip_top_level=True, patterns=("*.*",)
@@ -360,10 +368,15 @@ async def age(verbose: bool, fresh: bool, base: str, package_names: List[str]) -
 
 @cli.command()
 def checkcache() -> None:
-    for dirpath, dirnames, filenames in os.walk(os.path.expanduser("~/.cache/honesty/pypi")):
+    for dirpath, dirnames, filenames in os.walk(
+        os.path.expanduser("~/.cache/honesty/pypi")
+    ):
         if "json" in filenames:
-            archives = [f for f in filenames if not (f == "json" or
-            f.startswith("json.") or f.endswith(".json"))]
+            archives = [
+                f
+                for f in filenames
+                if not (f == "json" or f.startswith("json.") or f.endswith(".json"))
+            ]
             obj = json.loads(Path(dirpath, "json").read_text())
 
             if "releases" not in obj:
@@ -378,15 +391,13 @@ def checkcache() -> None:
                         h = hashlib.sha256()
                         h.update(Path(dirpath, filename).read_bytes())
                         archives.remove(filename)
-                        if i['digests']['sha256'] != h.hexdigest():
-                            click.secho(f"{dirpath}/{filename} bad digest",
-                            fg="red")
+                        if i["digests"]["sha256"] != h.hexdigest():
+                            click.secho(f"{dirpath}/{filename} bad digest", fg="red")
             if archives:
                 print(f"{dirpath} orphans {archives}")
 
 
-@cli.command(
-    help="""
+@cli.command(help="""
 Show a package's dep tree.
 
 The default output is a tree with red meaning there is no sdist.  If you want a
@@ -398,8 +409,7 @@ platform (which is wrong for many packages).
 
 This is not a solver and doesn't pretend to be.  A package can be listed
 multiple times (with different versions).
-"""
-)
+""")
 @click.option("--include-extras", is_flag=True, help="Whether to incude *any* extras")
 @click.option("--verbose", is_flag=True, help="Show verbose output")
 @click.option("--flat", is_flag=True, help="Show (an) install order rather than tree")
@@ -442,6 +452,7 @@ def deps(
             if k == p:
                 # TODO canonicalize
                 return v
+        return None
 
     # TODO platform option
     # TODO something that understands pep 517 requirements for building

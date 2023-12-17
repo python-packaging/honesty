@@ -6,7 +6,7 @@ import zipfile
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 from io import StringIO
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Callable
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.request import Request, urlopen
 from zipfile import ZipFile
 
@@ -32,8 +32,8 @@ class DepNode:
     name: str
     version: Version
     deps: List["DepEdge"] = field(default_factory=list)
-    has_sdist: bool = False
-    has_bdist: bool = False
+    has_sdist: Optional[bool] = False
+    has_bdist: Optional[bool] = False
     dep_extras: Optional[Set[str]] = None
     # TODO has_bdist (set of version/platform)?
     done: bool = False
@@ -380,7 +380,7 @@ def convert_sdist_requires(data: str) -> List[str]:
 
 
 def read_metadata_wheel(path: "os.PathLike[str]") -> List[str]:
-    tmp: List[str] = Wheel(str(path)).requires_dist
+    tmp: List[str] = list(Wheel(str(path)).requires_dist)
     return tmp
 
 
