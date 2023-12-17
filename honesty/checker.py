@@ -8,16 +8,14 @@ import click
 import toml
 from infer_license.api import guess_file
 from infer_license.types import License
+from packaging.version import Version
 
 from .archive import archive_hashes, extract_and_get_names
 from .cache import Cache
 from .releases import FileEntry, FileType, Package
-from .version import LooseVersion
 
 
-def run_checker(
-    package: Package, version: LooseVersion, verbose: bool, cache: Cache
-) -> int:
+def run_checker(package: Package, version: Version, verbose: bool, cache: Cache) -> int:
     try:
         rel = package.releases[version]
     except KeyError:
@@ -90,9 +88,7 @@ def run_checker(
     return rc
 
 
-def is_pep517(
-    package: Package, version: LooseVersion, verbose: bool, cache: Cache
-) -> bool:
+def is_pep517(package: Package, version: Version, verbose: bool, cache: Cache) -> bool:
     try:
         rel = package.releases[version]
     except KeyError:
@@ -125,7 +121,7 @@ def is_pep517(
 
 
 def guess_license(
-    package: Package, version: LooseVersion, verbose: bool, cache: Cache
+    package: Package, version: Version, verbose: bool, cache: Cache
 ) -> Union[License, str, None]:
     try:
         rel = package.releases[version]
@@ -158,7 +154,7 @@ def guess_license(
 
 
 def has_nativemodules(
-    package: Package, version: LooseVersion, verbose: bool, cache: Cache
+    package: Package, version: Version, verbose: bool, cache: Cache
 ) -> bool:
     try:
         rel = package.releases[version]

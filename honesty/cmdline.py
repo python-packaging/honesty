@@ -15,13 +15,14 @@ import aiohttp.client_exceptions
 
 import click
 
+from packaging.version import Version
+
 from .api import async_download_many
 from .archive import extract_and_get_names
 from .cache import Cache
 from .checker import guess_license, has_nativemodules, is_pep517, run_checker
 from .deps import DepEdge, DepNode, DepWalker, print_deps, print_flat_deps
 from .releases import async_parse_index, FileType, Package, parse_index
-from .version import LooseVersion, parse_version, Version
 
 try:
     from .__version__ import (  # type: ignore[unused-ignore,attr-defined]
@@ -460,7 +461,7 @@ def deps(
     # TODO a way to specify that you already have certain versions of packages,
     # to prefer them.
 
-    seen: Set[Tuple[str, Optional[Tuple[str, ...]], LooseVersion]] = set()
+    seen: Set[Tuple[str, Optional[Tuple[str, ...]], Version]] = set()
     assert python_version.count(".") == 2
     deptree = DepWalker(
         package_name,
@@ -479,9 +480,7 @@ def deps(
         print_deps(fake_root, seen)
 
 
-def select_versions(
-    package: Package, operator: str, selector: str
-) -> List[LooseVersion]:
+def select_versions(package: Package, operator: str, selector: str) -> List[Version]:
     """
     Given operator='==' and selector='*' or '2.0', return a list of the matching
     versions, in increasing order.
@@ -500,7 +499,7 @@ def select_versions(
         # we have a function called `list`
         return [x for x in package.releases.keys()]
     else:
-        pv = parse_version(selector)
+        pv = Version(selector)
         if pv not in package.releases:
             raise click.ClickException(
                 f"The version {selector} does not exist for {package.name}"
