@@ -29,7 +29,7 @@ lint:
 	touch honesty/__version__.py
 	python -m ufmt check $(SOURCES)
 	python -m flake8 $(SOURCES)
-	mypy --strict honesty
+	mypy --strict --install-types --non-interactive honesty
 
 .PHONY: pessimist
 pessimist:
