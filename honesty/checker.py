@@ -44,7 +44,7 @@ def run_checker(package: Package, version: Version, verbose: bool, cache: Cache)
             sdist_hashes = archive_hashes(lp, True)
             t1 = time.time()
             if verbose:
-                print(f"{fe.basename} {t1-t0}")
+                print(f"{fe.basename} {t1 - t0}")
 
     if verbose:
         for k, v in sdist_hashes.items():
@@ -59,7 +59,7 @@ def run_checker(package: Package, version: Version, verbose: bool, cache: Cache)
             this_hashes = archive_hashes(lp)
             t1 = time.time()
             if verbose:
-                print(f"{fe.basename} {t1-t0}")
+                print(f"{fe.basename} {t1 - t0}")
 
             msg = []
             for k, h in sorted(this_hashes.items()):
