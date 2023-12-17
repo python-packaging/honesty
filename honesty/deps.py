@@ -14,12 +14,12 @@ import click
 from packaging.markers import Marker
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
+from packaging.version import Version
 from pkginfo.distribution import parse as distribution_parse
 from pkginfo.wheel import Wheel
 
 from .cache import Cache
 from .releases import FileType, Package, parse_index
-from .version import LooseVersion, Version
 
 LOG = logging.getLogger(__name__)
 VersionCallback = Callable[[str], Optional[str]]
@@ -30,7 +30,7 @@ VersionCallback = Callable[[str], Optional[str]]
 @dataclass
 class DepNode:
     name: str
-    version: LooseVersion
+    version: Version
     deps: List["DepEdge"] = field(default_factory=list)
     has_sdist: bool = False
     has_bdist: bool = False
@@ -85,6 +85,9 @@ def _all_current_versions_unknown(cn: str) -> Optional[str]:
     return None
 
 
+KeyType = Tuple[str, Version, Optional[Tuple[str, ...]]]
+
+
 class DepWalker:
     def __init__(
         self,
@@ -94,7 +97,7 @@ class DepWalker:
         only_first: bool = False,
         trim_newer: Optional[datetime] = None,
     ) -> None:
-        self.nodes: Dict[Tuple[str, LooseVersion, Tuple[str, ...]], DepNode] = {}
+        self.nodes: Dict[KeyType, DepNode] = {}
         self.queue: List[Tuple[Optional[DepNode], str]] = [(None, starting_package)]
         self.root: Optional[DepNode] = None
         # TODO support unusual versions.
@@ -117,7 +120,9 @@ class DepWalker:
 
         if current_versions_callback is None:
             current_versions_callback = _all_current_versions_unknown
-        already_chosen: Dict[str, LooseVersion] = {}
+        already_chosen: Dict[str, Version] = {}
+
+        key: KeyType
 
         with Cache(fresh_index=True) as cache:
             while self.queue:
@@ -237,9 +242,9 @@ class DepWalker:
         self,
         req: Requirement,
         cache: Cache,
-        already_chosen: Dict[str, LooseVersion],
+        already_chosen: Dict[str, Version],
         currently_installed_callback: VersionCallback,
-    ) -> Tuple[Package, LooseVersion]:
+    ) -> Tuple[Package, Version]:
         """
         Given `attrs (==0.1.0)` returns the corresponding release.
 
@@ -263,7 +268,7 @@ class DepWalker:
         return package, v
 
     def _fetch_single_deps(
-        self, package: Package, v: LooseVersion, cache: Cache
+        self, package: Package, v: Version, cache: Cache
     ) -> Sequence[str]:
         # This uses pkginfo same as poetry, but we try to be a lot more efficient at
         # only downloading what we need to.  This is not a solver.
@@ -403,9 +408,9 @@ def _find_compatible_version(
     specifiers: SpecifierSet,
     python_version: Version,
     trim_newer: Optional[datetime] = None,
-    already_chosen: Optional[Dict[str, LooseVersion]] = None,
+    already_chosen: Optional[Dict[str, Version]] = None,
     current_versions_callback: Optional[VersionCallback] = None,
-) -> LooseVersion:
+) -> Version:
     # Luckily we can fall back on `packaging` here, because "correct" parsing is a
     # lot of code.  Legacy versions are already likely thrown away in
     # `parse_index`.
@@ -413,7 +418,7 @@ def _find_compatible_version(
     # First filter out by requires_python; this lets us give a more descriptive
     # error when the package is completely incompatible.
     # TODO: Give a better error when there's a release with no artifacts.
-    possible: List[LooseVersion] = []
+    possible: List[Version] = []
 
     for k, v in package.releases.items():
         if trim_newer:
@@ -456,7 +461,7 @@ def _find_compatible_version(
             f"{package.name} has no {requires_python} compatible release with constraint {specifiers}"
         )
     ac = already_chosen and already_chosen.get(package.name)
-    xform_possible: List[Tuple[bool, bool, int, LooseVersion]] = sorted(
+    xform_possible: List[Tuple[bool, bool, int, Version]] = sorted(
         (p == ac, p == cur_v, i, p) for (i, p) in enumerate(possible)
     )
     LOG.debug(f"  possible {xform_possible!r}")
@@ -555,7 +560,7 @@ class Extras:
 
 
 def print_flat_deps(
-    deps: DepNode, seen: Set[Tuple[str, Optional[Tuple[str, ...]], LooseVersion]]
+    deps: DepNode, seen: Set[Tuple[str, Optional[Tuple[str, ...]], Version]]
 ) -> None:
     # Simple postorder, assumes no cycles (fixtures/testtools)
     for x in deps.deps:
@@ -579,7 +584,7 @@ def print_flat_deps(
 
 def print_deps(
     deps: DepNode,
-    seen: Set[Tuple[str, Optional[Tuple[str, ...]], LooseVersion]],
+    seen: Set[Tuple[str, Optional[Tuple[str, ...]], Version]],
     depth: int = 0,
 ) -> None:
     prefix = ". " * depth

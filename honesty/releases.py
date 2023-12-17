@@ -8,8 +8,9 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from packaging.version import Version
+
 from .cache import Cache
-from .version import LooseVersion, parse_version
 
 # Apologies in advance, "parsing" html via regex
 CHECKSUM_RE = re.compile(
@@ -163,7 +164,7 @@ def parse_time(t: str) -> datetime:
 @dataclass
 class PackageRelease:
     version: str  # This is the original version, exactly as provided
-    parsed_version: LooseVersion
+    parsed_version: Version
     files: List[FileEntry]
     requires: Optional[List[str]] = None
 
@@ -171,7 +172,7 @@ class PackageRelease:
 @dataclass
 class Package:
     name: str
-    releases: Dict[LooseVersion, PackageRelease]
+    releases: Dict[Version, PackageRelease]
     requires: Optional[Sequence[str]] = None
 
 
@@ -243,7 +244,7 @@ async def async_parse_index(
     pkg: str, cache: Cache, strict: bool = False, use_json: bool = False
 ) -> Package:
     package = Package(name=pkg, releases={})
-    releases: Dict[LooseVersion, PackageRelease] = {}
+    releases: Dict[Version, PackageRelease] = {}
 
     # The input order of releases in both cases is not correct; so we sort at
     # the end before adding to the Package.
@@ -254,7 +255,7 @@ async def async_parse_index(
 
         for fe in gatherer.entries:
             v = fe.version
-            pv = parse_version(v)
+            pv = Version(v)
             if pv not in releases:
                 releases[pv] = PackageRelease(version=v, parsed_version=pv, files=[])
             releases[pv].files.append(fe)
@@ -273,7 +274,7 @@ async def async_parse_index(
                 # bother because there's nothing to install, and they don't show
                 # up in the simple index either.
                 continue
-            pv = parse_version(k)
+            pv = Version(k)
             releases[pv] = PackageRelease(version=k, parsed_version=pv, files=[])
             for release_file in release:
                 try:

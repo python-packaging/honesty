@@ -4,6 +4,8 @@ import re
 import tempfile
 import unittest
 
+from packaging.version import Version
+
 from ..releases import (
     FileType,
     UnexpectedFilename,
@@ -12,7 +14,6 @@ from ..releases import (
     parse_index,
     parse_time,
 )
-from ..version import parse_version
 from .cache import FakeCache
 
 WOAH_INDEX_CONTENTS = b"""\
@@ -116,7 +117,7 @@ class ReleasesTest(unittest.TestCase):
         self.assertEqual("woah", pkg.name)
         self.assertEqual(2, len(pkg.releases))
 
-        v01 = pkg.releases[parse_version("0.1")]
+        v01 = pkg.releases[Version("0.1")]
         self.assertEqual(2, len(v01.files))
 
         self.assertEqual(
@@ -141,7 +142,7 @@ class ReleasesTest(unittest.TestCase):
         self.assertEqual("woah", pkg.name)
         self.assertEqual(2, len(pkg.releases))
 
-        v01 = pkg.releases[parse_version("0.1")]
+        v01 = pkg.releases[Version("0.1")]
         self.assertEqual(2, len(v01.files))
 
         self.assertEqual(
@@ -179,9 +180,7 @@ class ReleasesTest(unittest.TestCase):
             )
             pkg = parse_index("woah", c, use_json=True)  # type: ignore
 
-        self.assertEqual(
-            [parse_version("0.9"), parse_version("0.20")], list(pkg.releases.keys())
-        )
+        self.assertEqual([Version("0.9"), Version("0.20")], list(pkg.releases.keys()))
 
     def test_error_on_unexpected_filename_regex(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -208,7 +207,7 @@ class ReleasesTest(unittest.TestCase):
 
         self.assertEqual(1, len(pkg.releases))
 
-        v02 = pkg.releases[parse_version("0.2")]
+        v02 = pkg.releases[Version("0.2")]
         self.assertEqual(2, len(v02.files))
 
     def test_guess_version(self) -> None:

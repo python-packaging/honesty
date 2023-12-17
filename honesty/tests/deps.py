@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import patch
 
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
+from packaging.version import Version
 
 from ..deps import (
     DepEdge,
@@ -19,7 +20,6 @@ from ..deps import (
     print_flat_deps,
 )
 from ..releases import FileEntry, FileType, Package, PackageRelease
-from ..version import Version
 
 
 class ConvertSdistRequiresTest(unittest.TestCase):

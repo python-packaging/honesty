@@ -19,11 +19,13 @@ from .archive import extract_and_get_names
 from .cache import Cache
 from .checker import guess_license, has_nativemodules, is_pep517, run_checker
 from .deps import DepEdge, DepNode, DepWalker, print_deps, print_flat_deps
-from .releases import FileType, Package, async_parse_index, parse_index
-from .version import LooseVersion, Version, parse_version
+from .releases import async_parse_index, FileType, Package, parse_index
+from .version import LooseVersion, parse_version, Version
 
 try:
-    from .__version__ import version as __version__  # type: ignore
+    from .__version__ import (  # type: ignore[unused-ignore,attr-defined]
+        version as __version__,
+    )
 except ImportError:
     __version__ = "dev"
 

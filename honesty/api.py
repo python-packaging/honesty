@@ -5,15 +5,15 @@ from pathlib import Path
 from typing import Optional, Sequence, Union
 
 import click
+from packaging.version import Version
 
 from .cache import Cache
 from .releases import FileEntry, FileType, Package, PackageRelease
-from .version import LegacyVersion, LooseVersion, Version, parse_version
 
 
 def download_many(
     package: Package,
-    versions: Sequence[Union[LooseVersion, str]],
+    versions: Sequence[Union[Version, str]],
     dest: Path,
     cache: Cache,
     verbose: bool = False,
@@ -28,7 +28,7 @@ def download_many(
 
 async def async_download_many(
     package: Package,
-    versions: Sequence[Union[LooseVersion, str]],
+    versions: Sequence[Union[Version, str]],
     dest: Optional[Path],
     cache: Cache,
     verbose: bool = False,
@@ -51,13 +51,13 @@ async def async_download_many(
 
 async def async_download_one(
     package: Package,
-    version: Union[LooseVersion, str],
+    version: Union[Version, str],
     dest: Optional[Path],
     cache: Cache,
 ) -> Path:
     if isinstance(version, str):
-        version = parse_version(version)
-    if not isinstance(version, (LegacyVersion, Version)):
+        version = Version(version)
+    if not isinstance(version, Version):
         raise TypeError(
             f"version {version!r} comes from {version.__module__}, not packaging.version"
         )
@@ -79,7 +79,7 @@ async def async_download_one(
     return cache_path
 
 
-def pick_release(package: Package, version: LooseVersion) -> PackageRelease:
+def pick_release(package: Package, version: Version) -> PackageRelease:
     # Only works on conrete versions, no operators
     if version in package.releases:
         return package.releases[version]
