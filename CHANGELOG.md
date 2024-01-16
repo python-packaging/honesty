@@ -1,6 +1,12 @@
 honesty
 =======
 
+v0.3.0a3
+--------
+
+* Feature: Compatible with python 3.8-3.12 now.
+* Fix: Work with packaging after the LegacyVersion removal.
+
 v0.3.0a2
 --------
 
