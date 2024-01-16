@@ -17,7 +17,7 @@ from honesty.api import async_download_many
 from honesty.archive import extract_and_get_names
 from honesty.cache import Cache
 from honesty.checker import guess_license, has_nativemodules, is_pep517, run_checker
-from honesty.releases import FileType, Package, async_parse_index, parse_index
+from honesty.releases import async_parse_index, FileType, Package, parse_index
 
 
 # TODO type
@@ -267,7 +267,12 @@ async def extract(
 @click.option("--base", help="yyyy-mm-dd of when to subtract from")
 @click.argument("package_name")
 @wrap_async
-async def age(verbose: bool, fresh: bool, base: str, package_name: str,) -> None:
+async def age(
+    verbose: bool,
+    fresh: bool,
+    base: str,
+    package_name: str,
+) -> None:
 
     if base:
         base_date = datetime.strptime(base, "%Y-%m-%d")
@@ -280,7 +285,16 @@ async def age(verbose: bool, fresh: bool, base: str, package_name: str,) -> None
         package = await async_parse_index(package_name, cache, use_json=True)
         selected_versions = select_versions(package, operator, version)
         for v in selected_versions:
-            t = min(x.upload_time for x in package.releases[v].files)
+            if package.releases[v].files:
+                t = min(
+                    x.upload_time
+                    for x in package.releases[v].files
+                    if x.upload_time is not None
+                )
+            else:
+                print(f"{v}\t(no files)\t(no files)")
+                continue
+
             assert t is not None
 
             diff = base_date - t

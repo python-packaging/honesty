@@ -9,9 +9,12 @@ setup(
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Topic :: Utilities",
     ],
     entry_points={"console_scripts": ["honesty = honesty.cmdline:cli"]},
@@ -19,7 +22,7 @@ setup(
         "aiohttp >= 3.6",
         "appdirs >= 1.4",
         "click >= 7.0",
-        "dataclasses >= 0.7; python_version < '3.7'",
         "infer-license >= 0.0.6",
+        "setuptools",  # for pkg_resources
     ],
 )

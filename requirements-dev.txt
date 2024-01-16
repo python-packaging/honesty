@@ -1,9 +1,9 @@
-black==19.10b0
-coverage==4.5.4
-flake8==3.7.9
-isort==4.3.21
-mypy==0.750
-tox==3.14.1
-twine==3.1.1
+black==24.1a1 ; python_version >= '3.10'
+coverage==7.4.0 ; python_version >= '3.10'
+coverage==4.5.4 ; python_version < '3.10'
+flake8==7.0.0 ; python_version >= '3.10'
+mypy==1.8.0 ; python_version >= '3.10'
+tox==4.12.0 ; python_version >= '3.10'
+twine==4.0.2
 volatile==2.1.0
-wheel==0.33.6
+wheel==0.42.0
