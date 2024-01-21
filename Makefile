@@ -12,8 +12,7 @@ venv:
 
 .PHONY: setup
 setup:
-	python -m pip install -U pip wheel
-	python -m pip install -Ur requirements-dev.txt
+	python -m pip install -Ue .[dev,test]
 
 .PHONY: test
 test:
@@ -29,6 +28,7 @@ lint:
 	touch honesty/__version__.py
 	python -m ufmt check $(SOURCES)
 	python -m flake8 $(SOURCES)
+	python -m checkdeps --allow-names honesty honesty
 	mypy --strict --install-types --non-interactive honesty
 
 .PHONY: pessimist
