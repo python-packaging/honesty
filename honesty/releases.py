@@ -104,6 +104,7 @@ class FileEntry:
     size: Optional[int] = None
     python_version: Optional[str] = None  # 'py2.py3' or 'source'
     upload_time: Optional[datetime] = None
+    yanked: Optional[str] = None
     # TODO extract upload date?
 
     @classmethod
@@ -129,6 +130,7 @@ class FileEntry:
             file_type=guess_file_type(basename),
             version=guess_version(basename)[1],
             requires_python=d.get("data-requires-python"),
+            yanked=d.get("data-yanked"),
         )
 
     @classmethod
@@ -144,6 +146,7 @@ class FileEntry:
             requires_python=obj["requires_python"],
             size=obj["size"],
             upload_time=parse_time(obj["upload_time_iso_8601"]),
+            yanked=obj.get("yanked", None),
         )
 
 
@@ -167,6 +170,7 @@ class PackageRelease:
     parsed_version: Version
     files: List[FileEntry]
     requires: Optional[List[str]] = None
+    yanked: Optional[str] = None
 
 
 @dataclass
@@ -257,7 +261,10 @@ async def async_parse_index(
             v = fe.version
             pv = Version(v)
             if pv not in releases:
-                releases[pv] = PackageRelease(version=v, parsed_version=pv, files=[])
+                # TODO yanked
+                releases[pv] = PackageRelease(
+                    version=v, parsed_version=pv, files=[], yanked="default"
+                )
             releases[pv].files.append(fe)
     else:
         # This will redirect away from canonical name if they differ
@@ -275,7 +282,9 @@ async def async_parse_index(
                 # up in the simple index either.
                 continue
             pv = Version(k)
-            releases[pv] = PackageRelease(version=k, parsed_version=pv, files=[])
+            releases[pv] = PackageRelease(
+                version=k, parsed_version=pv, files=[], yanked="default"
+            )
             for release_file in release:
                 try:
                     releases[pv].files.append(FileEntry.from_json(k, release_file))
@@ -286,5 +295,10 @@ async def async_parse_index(
     package.releases = dict(sorted(releases.items()))
     for rel in package.releases.values():
         rel.files.sort()
+        if not rel.files or not all(f.yanked for f in rel.files):
+            rel.yanked = None
+        else:
+            # Chose first message arbitrarily
+            rel.yanked = next(f.yanked for f in rel.files)
 
     return package

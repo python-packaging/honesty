@@ -361,7 +361,9 @@ async def age(verbose: bool, fresh: bool, base: str, package_names: List[str]) -
 
                 diff = base_date - t
                 days = diff.days + (diff.seconds / 86400.0)
-                print(f"{prefix}{v}\t{t.strftime('%Y-%m-%d')}\t{days:.2f}")
+                print(
+                    f"{prefix}{v}\t{t.strftime('%Y-%m-%d')}\t{days:.2f}{'\t(yanked)' if package.releases[v].yanked else ''}"
+                )
 
 
 @cli.command()
@@ -498,11 +500,13 @@ def select_versions(package: Package, operator: str, selector: str) -> List[Vers
 
     if selector == "":
         # latest; we have a function called `list`
-        version = [x for x in package.releases.keys()][-1]
+        version = [
+            x for x in package.releases.keys() if not package.releases[x].yanked
+        ][-1]
         return [version]
     elif selector == "*":
         # we have a function called `list`
-        return [x for x in package.releases.keys()]
+        return [x for x in package.releases.keys() if not package.releases[x].yanked]
     else:
         pv = Version(selector)
         if pv not in package.releases:
