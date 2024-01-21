@@ -1,13 +1,11 @@
 import logging
 import os
-import re
 import tarfile
 import zipfile
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 from io import StringIO
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
-from urllib.request import Request, urlopen
 from zipfile import ZipFile
 
 import click

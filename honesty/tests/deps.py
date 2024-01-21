@@ -1,7 +1,6 @@
 import io
 import sys
 import unittest
-import urllib.error
 from typing import Any
 from unittest.mock import patch
 
