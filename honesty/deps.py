@@ -541,7 +541,11 @@ def print_deps(
             )
         else:
             seen.add(key)
-            color = "red" if not x.target.has_sdist else "green"
+            if any(x[0] == key[0] for x in seen):
+                # conflicting decision
+                color = "magenta"
+            else:
+                color = "red" if not x.target.has_sdist else "green"
             click.echo(
                 prefix
                 + click.style(
