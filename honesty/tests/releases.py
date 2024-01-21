@@ -101,7 +101,9 @@ z","has_sig":false,"md5_digest":"0b5eecde7203c8ff2260a51825dd1a9c","packagetype"
 _time":"2019-09-20T05:39:41","upload_time_iso_8601":"2019-09-20T05:39:41.862688Z
 ","url":"https://files.pythonhosted.org/packages/fb/f2/dc6873f2763ffb457d3dbe422
 4ea59b21a8495fa0ef86d230b78cdba0f22/woah-0.2.tar.gz"}]}
-""".replace(b"\n", b"")
+""".replace(
+    b"\n", b""
+)
 
 LONG_NAME = "scipy-0.14.1rc1.dev_205726a-cp33-cp33m-macosx_10_6_intel.macosx_10_9_intel.macosx_10_9_x86_64.macosx_10_10_intel.macosx_10_10_x86_64.whl"
 

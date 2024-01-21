@@ -117,7 +117,6 @@ class DepWalker:
         current_versions_callback: Optional[VersionCallback] = None,
         use_json: bool = True,
     ) -> DepNode:
-
         if current_versions_callback is None:
             current_versions_callback = _all_current_versions_unknown
         already_chosen: Dict[str, Version] = {}

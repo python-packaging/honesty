@@ -330,7 +330,6 @@ async def extract(
 @click.argument("package_names", nargs=-1)
 @wrap_async
 async def age(verbose: bool, fresh: bool, base: str, package_names: List[str]) -> None:
-
     if base:
         base_date = datetime.strptime(base, "%Y-%m-%d")
     else:
@@ -396,7 +395,8 @@ def checkcache() -> None:
                 print(f"{dirpath} orphans {archives}")
 
 
-@cli.command(help="""
+@cli.command(
+    help="""
 Show a package's dep tree.
 
 The default output is a tree with red meaning there is no sdist.  If you want a
@@ -408,7 +408,8 @@ platform (which is wrong for many packages).
 
 This is not a solver and doesn't pretend to be.  A package can be listed
 multiple times (with different versions).
-""")
+"""
+)
 @click.option("--include-extras", is_flag=True, help="Whether to incude *any* extras")
 @click.option("--verbose", is_flag=True, help="Show verbose output")
 @click.option("--flat", is_flag=True, help="Show (an) install order rather than tree")

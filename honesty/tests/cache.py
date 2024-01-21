@@ -48,7 +48,6 @@ class FakeCache:
 
 class CacheTest(unittest.TestCase):
     def test_fetch_caches(self) -> None:
-
         d = tempfile.mkdtemp()
 
         def get_side_effect(
@@ -64,7 +63,6 @@ class CacheTest(unittest.TestCase):
             raise NotImplementedError(url)  # pragma: no cover
 
         with Cache(index_url="https://pypi.org/simple/", cache_dir=d) as cache:
-
             with mock.patch.object(cache.session, "get", side_effect=get_side_effect):
                 rv = cache.fetch("projectname", url=None)
                 self.assertTrue(rv.exists(), rv)
