@@ -7,7 +7,6 @@ from .deps import (
     FindCompatibleVersionTest,
     PrintDepsTest,
     PrintFlatDepsTest,
-    TestSeekableHttpFile,
 )
 from .releases import ReleasesTest
 
@@ -17,7 +16,6 @@ __all__ = [
     "ConvertSdistRequiresTest",
     "EnvironmentMarkersTest",
     "FindCompatibleVersionTest",
-    "TestSeekableHttpFile",
     "DepWalkerTest",
     "ReleasesTest",
     "PrintDepsTest",
