@@ -398,12 +398,14 @@ def read_metadata_remote_wheel(url: str) -> Sequence[str]:
     metadata_names = [name for name in z.namelist() if name.endswith("/METADATA")]
     metadata_names.sort(key=len)
 
-    assert len(metadata_names) > 0
-    # TODO: This does not go through the Wheel path from pkginfo because it
-    # requires a filename on disk.
-    data = z.read(metadata_names[0])
-    metadata = distribution_parse(StringIO(data.decode()))
-    return metadata.get_all("Requires-Dist")
+    if len(metadata_names) > 0:
+        # TODO: This does not go through the Wheel path from pkginfo because it
+        # requires a filename on disk.
+        data = z.read(metadata_names[0])
+        metadata = distribution_parse(StringIO(data.decode()))
+        reqs = metadata.get_all("Requires-Dist")
+        assert reqs is not None
+        return reqs
 
     raise ValueError("No metadata")
 
