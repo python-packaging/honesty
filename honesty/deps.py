@@ -11,7 +11,7 @@ from zipfile import ZipFile
 import click
 from packaging.markers import Marker
 from packaging.requirements import Requirement
-from packaging.specifiers import SpecifierSet
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import Version
 from pkginfo.distribution import parse as distribution_parse
 from pkginfo.wheel import Wheel
@@ -436,18 +436,21 @@ def _find_compatible_version(
             if oldest_file is not None and oldest_file > trim_newer:
                 continue
 
-        # requires_python is set on FileEntry, not PackageRelease
-        # arbitrarily take the first one.
-        requires_python = None
-        for fe in v.files:
-            if fe.requires_python:
-                requires_python = SpecifierSet(fe.requires_python)
-                break
+        try:
+            # requires_python is set on FileEntry, not PackageRelease
+            # arbitrarily take the first one.
+            requires_python = None
+            for fe in v.files:
+                if fe.requires_python:
+                    requires_python = SpecifierSet(fe.requires_python)
+                    break
 
-        # LOG.debug(f"CHECK {package.name} {python_version} against {requires_python}: {k}")
-        if not requires_python or python_version in requires_python:
-            LOG.debug("  include %s", k)
-            possible.append(k)
+            # LOG.debug(f"CHECK {package.name} {python_version} against {requires_python}: {k}")
+            if not requires_python or python_version in requires_python:
+                LOG.debug("  include %s", k)
+                possible.append(k)
+        except InvalidSpecifier as e:
+            LOG.debug(f"  bad specifier: {e!r}")
 
     if not possible:
         raise ValueError(f"{package.name} incompatible with {python_version}")
