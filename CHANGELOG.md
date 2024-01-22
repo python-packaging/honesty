@@ -1,6 +1,17 @@
 honesty
 =======
 
+v0.3.0a5
+--------
+
+* Fix: projects with no deps can now have their metadata read (libclang 16.0.6)
+
+v0.3.0a4
+--------
+
+* Feature: Both deps and revs subcommands in the same release
+* Fix: Lots of real-world fixes to specifier handling
+
 v0.3.0a3
 --------
 

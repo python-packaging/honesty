@@ -402,8 +402,7 @@ def read_metadata_remote_wheel(url: str) -> Sequence[str]:
         # requires a filename on disk.
         data = z.read(metadata_names[0])
         metadata = distribution_parse(StringIO(data.decode()))
-        reqs = metadata.get_all("Requires-Dist")
-        assert reqs is not None
+        reqs = metadata.get_all("Requires-Dist") or ()
         return reqs
 
     raise ValueError("No metadata")
