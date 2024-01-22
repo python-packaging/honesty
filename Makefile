@@ -28,7 +28,7 @@ lint:
 	python -m ufmt check $(SOURCES)
 	python -m flake8 $(SOURCES)
 	python -m checkdeps --allow-names honesty honesty
-	mypy --strict --non-interactive honesty
+	mypy --strict --install-types --non-interactive honesty
 
 .PHONY: release
 release:
