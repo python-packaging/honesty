@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from packaging.version import Version
+from packaging.version import InvalidVersion, Version
 
 from .cache import Cache
 
@@ -283,7 +283,11 @@ async def async_parse_index(
                 # bother because there's nothing to install, and they don't show
                 # up in the simple index either.
                 continue
-            pv = Version(k)
+            try:
+                pv = Version(k)
+            except InvalidVersion as e:
+                print(f"Skip version {pkg}=={k}: {e!r}")
+                continue
             releases[pv] = PackageRelease(
                 version=k, parsed_version=pv, files=[], yanked="default"
             )

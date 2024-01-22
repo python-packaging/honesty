@@ -89,20 +89,8 @@ def run_checker(package: Package, version: Version, verbose: bool, cache: Cache)
 
 
 def is_pep517(package: Package, version: Version, verbose: bool, cache: Cache) -> bool:
-    try:
-        rel = package.releases[version]
-    except KeyError:
-        raise click.ClickException(f"version={version} not available")
-
-    # Find *a* sdist
-    sdists = [f for f in rel.files if f.file_type == FileType.SDIST]
-    if not sdists:
-        raise click.ClickException(f"{package.name} no sdists")
-
-    lp = cache.fetch(pkg=package.name, url=sdists[0].url)
-
-    archive_root, names = extract_and_get_names(
-        lp, strip_top_level=True, patterns=("pyproject.toml",)
+    archive_root, names = _version_helper(
+        package, version, cache, FileType.SDIST, ("pyproject.toml",)
     )
     for relname, srcname in names:
         # TODO for a couple of projects this is finding test fixtures, we
@@ -114,7 +102,7 @@ def is_pep517(package: Package, version: Version, verbose: bool, cache: Cache) -
             t = toml.loads(data.decode("utf-8"))
             bb = t.get("build-system", {}).get("build-backend", "?")
             click.echo(f"{package.name} {bb}")
-            break
+            return True
     else:
         click.echo(f"{package.name} no-pyproject-toml")
     return False
@@ -123,20 +111,8 @@ def is_pep517(package: Package, version: Version, verbose: bool, cache: Cache) -
 def guess_license(
     package: Package, version: Version, verbose: bool, cache: Cache
 ) -> Union[License, str, None]:
-    try:
-        rel = package.releases[version]
-    except KeyError:
-        raise click.ClickException(f"version={version} not available")
-
-    # Find *a* sdist
-    sdists = [f for f in rel.files if f.file_type == FileType.SDIST]
-    if not sdists:
-        raise click.ClickException(f"{package.name} no sdists")
-
-    lp = cache.fetch(pkg=package.name, url=sdists[0].url)
-
-    archive_root, names = extract_and_get_names(
-        lp, strip_top_level=True, patterns=("LICENSE*", "COPY*")
+    archive_root, names = _version_helper(
+        package, version, cache, FileType.SDIST, ("LICENSE*", "COPY*")
     )
     result_path = None
     result: Union[License, str, None] = None
@@ -156,24 +132,10 @@ def guess_license(
 def has_nativemodules(
     package: Package, version: Version, verbose: bool, cache: Cache
 ) -> bool:
-    try:
-        rel = package.releases[version]
-    except KeyError:
-        raise click.ClickException(f"version={version} not available")
-
-    # Find *a* sdist
-    bdists = [f for f in rel.files if f.file_type == FileType.BDIST_WHEEL]
-    if not bdists:
-        raise click.ClickException(f"{package.name} no bdists")
-
-    if verbose:
-        click.echo(f"{package.name} {version} {bdists[0].basename}")
-
-    lp = cache.fetch(pkg=package.name, url=bdists[0].url)
-
-    archive_root, names = extract_and_get_names(
-        lp, strip_top_level=False, patterns=("*.so", "*.dll")
+    archive_root, names = _version_helper(
+        package, version, cache, FileType.BDIST_WHEEL, ("*.so", "*.dll")
     )
+
     for relname, srcname in names:
         # TODO for a couple of projects this is finding test fixtures, we
         # should only be looking alongside the rootmost setup.py
@@ -182,6 +144,33 @@ def has_nativemodules(
             return True
 
     return False
+
+
+def _version_helper(
+    package: Package,
+    version: Version,
+    cache: Cache,
+    desired_type: FileType,
+    patterns: Tuple[str, ...],
+) -> Tuple[str, List[Tuple[str, str]]]:
+    try:
+        rel = package.releases[version]
+    except KeyError:
+        raise click.ClickException(f"version={version} not available")
+
+    # Find *a* _dist
+    dists = [f for f in rel.files if f.file_type == desired_type]
+    if not dists:
+        raise click.ClickException(f"{package.name} no {desired_type.name}")
+
+    # if verbose:
+    #     click.echo(f"{package.name} {version} {dists[0].basename}")
+
+    lp = cache.fetch(pkg=package.name, url=dists[0].url)
+    archive_root, names = extract_and_get_names(
+        lp, strip_top_level=True, patterns=patterns
+    )
+    return archive_root, names
 
 
 def shorten(subj: str, n: int = 50) -> str:

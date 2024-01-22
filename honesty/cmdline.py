@@ -23,7 +23,7 @@ from .cache import Cache
 from .checker import guess_license, has_nativemodules, is_pep517, run_checker
 from .deps import DepEdge, DepNode, DepWalker, print_deps, print_flat_deps
 from .releases import async_parse_index, FileType, Package, parse_index
-from .vcs import CloneAnalyzer, extract2, matchmerge
+from .vcs import CloneAnalyzer, extract2
 
 try:
     from .__version__ import version as __version__
@@ -362,8 +362,9 @@ async def age(verbose: bool, fresh: bool, base: str, package_names: List[str]) -
 
                 diff = base_date - t
                 days = diff.days + (diff.seconds / 86400.0)
+                tab = "\t"
                 print(
-                    f"{prefix}{v}\t{t.strftime('%Y-%m-%d')}\t{days:.2f}{'\t(yanked)' if package.releases[v].yanked else ''}"
+                    f"{prefix}{v}\t{t.strftime('%Y-%m-%d')}\t{days:.2f}{tab + '(yanked)' if package.releases[v].yanked else ''}"
                 )
 
 
@@ -489,13 +490,14 @@ def deps(
 
 
 @cli.command(help="Guess what git rev corresponds to a release")
+@click.option("--verbose", "-v", is_flag=True, type=bool)
 @click.option("--url-only", is_flag=True)
-@click.option("--try_order", default="likely_tags,tags,branches")
+@click.option("--try-order", default="likely_tags,tags,branches", show_default=True)
 @click.option("--fresh", "-f", is_flag=True)
 @click.argument("package_names", nargs=-1)
 @wrap_async
 async def revs(
-    url_only: bool, fresh: bool, try_order: str, package_names: List[str]
+    verbose: bool, url_only: bool, fresh: bool, try_order: str, package_names: List[str]
 ) -> None:
     async with Cache(fresh_index=fresh) as cache:
         for package_name in package_names:
@@ -521,7 +523,7 @@ async def revs(
                 print(f"{package.name}: {url}")
                 continue
 
-            ca = CloneAnalyzer(url)
+            ca = CloneAnalyzer(url, verbose=verbose)
 
             selected_versions = select_versions(package, operator, version)
             for sv in selected_versions:
@@ -549,7 +551,7 @@ async def revs(
                 click.echo(f"{package.name}=={sv} {type_suffix}:")
 
                 match = ca.find_best_match(
-                    archive_root, names, sv, try_order=try_order.split(",")
+                    archive_root, names, str(sv), try_order=try_order.split(",")
                 )
                 # TODO attempt a describe on revs, and don't sort alphabetically
                 simplified = sorted(set(m[2] for m in match))

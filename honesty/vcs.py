@@ -20,15 +20,15 @@ import functools
 import os
 import re
 import subprocess
-import sys
-import time
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from .releases import Package
 
 GITHUB_URL = re.compile(r"^https?://github.com/[^/]+/[^/]+")
 GITLAB_URL = re.compile(r"^https?://gitlab.com/[^/]+/[^/]+")
+
+ONELINE_RE = re.compile(r"^([0-9a-f]+) (?:\((.+?)\) )?(.*)", re.M)
 
 
 def extract_vcs_url(s: Optional[str]) -> Optional[str]:
@@ -58,6 +58,7 @@ def extract2(p: Package) -> Optional[str]:
     url = extract_vcs_url(p.home_page)
     if url:
         return url
+    # .project_urls is only from the json api
     if p.project_urls:
         for i in p.project_urls.values():
             url = extract_vcs_url(i)
@@ -66,14 +67,12 @@ def extract2(p: Package) -> Optional[str]:
     return None
 
 
-ONELINE_RE = re.compile(r"^([0-9a-f]+) (?:\((.+?)\) )?(.*)", re.M)
-
-
 class CloneAnalyzer:
     def __init__(self, url: str, verbose: bool = False) -> None:
         assert url.endswith("/")
         parts = url.split("/")
         self.key = "__".join(parts[-3:-1])
+        # TODO appdirs/customizable
         self.dir = Path("~/.cache/honesty/git").expanduser() / self.key
         if not self.dir.exists():
             env = os.environ.copy()
@@ -87,7 +86,7 @@ class CloneAnalyzer:
 
         self.verbose = verbose
 
-    def _tree_log(self, ref):
+    def _tree_log(self, ref: str) -> List[List[str]]:
         return [
             line.split()
             for line in subprocess.check_output(
@@ -99,59 +98,44 @@ class CloneAnalyzer:
         ]
 
     @functools.lru_cache(maxsize=4096)
-    def _ls_tree(self, tree):
+    def _ls_tree(self, tree: str) -> List[str]:
         return subprocess.check_output(
             ["git", "ls-tree", "-r", tree], encoding="utf-8", cwd=self.dir
         ).splitlines()
 
-    def _hash_object_path(self, path):
+    def _hash_object_path(self, path: str) -> str:
         return subprocess.check_output(
             ["git", "hash-object", path], encoding="utf-8"
         ).strip()
 
-    def best_match_contents(self, filename, contents) -> Any:
-        # In order for clone to pull it down, it must be reachable; so we can
-        # check log of tags, and log of remote branches.  Commonly, tags are
-        # part of branch history, so check those first.
+    # def _tag_in_branch(self, branch: str, commits: Iterable[str]) -> List[str]:
+    #     tags = []
+    #     for a, b, c in self._log(branch):
+    #         if a in commits:
+    #             assert b is not None
+    #             for dec in b.split(", "):
+    #                 if dec.startswith("tag: "):
+    #                     tags.append(dec[5:])
+    #     return tags
 
-        # TODO contents has to be utf-8 encodable here...
-        hash = subprocess.check_output(
-            ["git", "hash-object", "--stdin"], input=contents, encoding="utf-8"
-        ).strip()
+    # def _log(
+    #     self, ref: str, filename: Optional[str] = None
+    # ) -> List[Tuple[str, Optional[str], str]]:
+    #     # if filename is None and ref in self._log_cache:
+    #     #     return self._log_cache[ref]
 
-        rv = {}
+    #     args = ["git", "log", "--no-renames", "--oneline", "--decorate", ref]
+    #     if filename:
+    #         args.extend(["--", filename])
 
-        for branch, known_blobs in self.branch_file_hash_ranges.items():
-            rv[branch] = set(known_blobs.get(hash, ()))
+    #     data = subprocess.check_output(args, cwd=self.dir, encoding="utf-8")
+    #     # print(data)
+    #     rv = ONELINE_RE.findall(data)
+    #     # if filename is None:
+    #     #    self._log_cache[ref] = rv
+    #     return rv
 
-        # git tag --contains <ref>
-        return rv
-
-    def _tag_in_branch(self, branch, commits):
-        tags = []
-        for a, b, c in self._log(branch):
-            if a in commits:
-                for dec in b.split(", "):
-                    if dec.startswith("tag: "):
-                        tags.append(dec[5:])
-        return tags
-
-    def _log(self, ref, filename=None):
-        if filename is None and ref in self._log_cache:
-            return self._log_cache[ref]
-
-        args = ["git", "log", "--no-renames", "--oneline", "--decorate", ref]
-        if filename:
-            args.extend(["--", filename])
-
-        data = subprocess.check_output(args, cwd=self.dir, encoding="utf-8")
-        # print(data)
-        rv = ONELINE_RE.findall(data)
-        # if filename is None:
-        #    self._log_cache[ref] = rv
-        return rv
-
-    def _branch_names(self):
+    def _branch_names(self) -> List[str]:
         names = []
         for line in subprocess.check_output(
             ["git", "branch", "-r"], cwd=self.dir, encoding="utf-8"
@@ -166,41 +150,46 @@ class CloneAnalyzer:
                 raise ValueError(f"Unknown branch format {line!r}")
         return names
 
-    def _tag_names(self):
+    def _tag_names(self) -> List[str]:
         return subprocess.check_output(
             ["git", "tag"], cwd=self.dir, encoding="utf-8"
         ).splitlines()
 
-    def _cat(self, filename, rev):
+    def _cat(self, filename: str, rev: str) -> str:
         return subprocess.check_output(
             ["git", "show", f"{rev}:{filename}"], cwd=self.dir, encoding="utf-8"
         )
 
     @functools.lru_cache(maxsize=None)
-    def _exists(self, hash):
+    def _exists(self, hash: str) -> bool:
         try:
             subprocess.check_call(["git", "cat-file", "-e", hash], cwd=self.dir)
             return True
         except subprocess.CalledProcessError:
             return False
 
-    def _try_tags(self, known, likely_tags):
+    def _try_tags(
+        self, known: Dict[str, str], likely_tags: Iterable[str]
+    ) -> List[Tuple[float, int, str]]:
         scores = []
         for tag in likely_tags:
+            if self.verbose:
+                print(f"Try tag {tag}")
             leftover = self._calc_leftover(tag, known)
             # print(f"{tag} is close, missing {', '.join(known[x] for x in leftover)}")
             scores.append((1 - (len(leftover) / float(len(known))), 0, f"tags/{tag}"))
         return scores
 
-    def _try_branches(self, known) -> List[Tuple[float, str]]:
-        rev_on_branch = {}
-        revs = None
+    def _try_branches(self, known: Dict[str, str]) -> List[Tuple[float, int, str]]:
+        rev_on_branch: Dict[str, Set[str]] = {}
         checked = set()
         scores = []
 
         checked_results = set()
 
         for branch in self._branch_names():
+            if self.verbose:
+                print(f"Try branch {branch}")
             # TODO: Index
             branch_revs = subprocess.check_output(
                 ["git", "log", "--no-renames", "--pretty=%h", branch],
@@ -283,11 +272,10 @@ class CloneAnalyzer:
                 checked_results.add(key)
 
                 for rev in branch_revs[a : b + 1]:
-
                     if rev in rev_on_branch:
                         rev_on_branch[rev].add(branch)
                         continue
-                    rev_on_branch[rev] = set(branch)
+                    rev_on_branch[rev] = set((branch,))
 
                     leftover = self._calc_leftover(rev, known)
                     # if leftover:
@@ -296,7 +284,7 @@ class CloneAnalyzer:
 
         return scores
 
-    def _calc_leftover(self, rev, known):
+    def _calc_leftover(self, rev: str, known: Dict[str, str]) -> List[str]:
         matching_hashes = set()
         # TODO this could probably be optimized by looking at log
         # --stat; many fewer forks.
@@ -310,9 +298,15 @@ class CloneAnalyzer:
         return leftover
 
     def find_best_match(
-        self, archive_root: str, names: List[str], version: str, try_order: List[str]
-    ) -> List[Tuple[float, str]]:
-        known = {}
+        self,
+        archive_root: str,
+        names: List[Tuple[str, str]],
+        version: str,
+        try_order: List[str],
+    ) -> List[Tuple[float, int, str]]:
+        known: Dict[str, str] = {}
+
+        # N.b. names is a list-of-tuple because of strip_top_level
         for a, b in names:
             if "egg-info" in a:
                 continue
@@ -332,7 +326,7 @@ class CloneAnalyzer:
             # nothing passed in exists at all in this repo :/
             return []
 
-        scores = []
+        scores: List[Tuple[float, int, str]] = []
         for t in try_order:
             if t == "likely_tags":
                 likely_tags = [t for t in self._tag_names() if t.endswith(str(version))]
@@ -345,6 +339,7 @@ class CloneAnalyzer:
                 raise Exception(f"Unknown try_order {t!r}")
 
             scores.sort(reverse=True)
+            # Stop on the first perfect match
             if scores and scores[0][0] == 1.0:
                 break
 
@@ -362,15 +357,7 @@ class CloneAnalyzer:
 
         return scores[: last + 1]
 
-    def describe(self, rev):
-        return subprocess.check_output(["git", "describe", "--tags", rev], cwd=self.dir)
-
-
-def matchmerge(a, b):
-    d = {}
-    for k, v in a.items():
-        if k in b:
-            d[k] = v.intersection(b[k])
-        else:
-            d[k] = a[k]
-    return d
+    def describe(self, rev: str) -> str:
+        return subprocess.check_output(
+            ["git", "describe", "--tags", rev], cwd=self.dir, encoding="utf-8"
+        )

@@ -1,5 +1,6 @@
 from .archive import ArchiveTest
 from .cache import CacheTest
+from .checker import CheckerTest
 from .deps import (
     ConvertSdistRequiresTest,
     DepWalkerTest,
@@ -9,10 +10,12 @@ from .deps import (
     PrintFlatDepsTest,
 )
 from .releases import ReleasesTest
+from .revs import RevsTest
 
 __all__ = [
     "ArchiveTest",
     "CacheTest",
+    "CheckerTest",
     "ConvertSdistRequiresTest",
     "EnvironmentMarkersTest",
     "FindCompatibleVersionTest",
@@ -20,4 +23,5 @@ __all__ = [
     "ReleasesTest",
     "PrintDepsTest",
     "PrintFlatDepsTest",
+    "RevsTest",
 ]

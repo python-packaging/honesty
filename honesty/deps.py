@@ -540,12 +540,12 @@ def print_deps(
                 f"{prefix}{x.target.name}{dep_extras} (=={x.target.version}) (already listed){' ; ' + str(x.markers) if x.markers else ''}"
             )
         else:
-            seen.add(key)
             if any(x[0] == key[0] for x in seen):
                 # conflicting decision
                 color = "magenta"
             else:
                 color = "red" if not x.target.has_sdist else "green"
+            seen.add(key)
             click.echo(
                 prefix
                 + click.style(
