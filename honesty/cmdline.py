@@ -429,7 +429,8 @@ multiple times (with different versions).
 @click.option("--historical", help="yyyy-mm-dd of a historical date to simulate")
 @click.option("--have", help="pkg==ver to assume already installed", multiple=True)
 @click.option("--use-json", is_flag=True, default=True, show_default=True)
-@click.argument("package_name")
+@click.option("-r", "--requirement_file")
+@click.argument("package_names", nargs=-1)
 def deps(
     include_extras: bool,
     verbose: bool,
@@ -437,12 +438,17 @@ def deps(
     pick: bool,
     python_version: str,
     sys_platform: str,
-    package_name: str,
+    package_names: List[str],
     historical: str,
     have: List[str],
     use_json: bool,
+    requirement_file: str,
 ) -> None:
     logging.basicConfig(level=logging.DEBUG if verbose else logging.WARNING)
+
+    if requirement_file:
+        # TODO handle comments and whatnot
+        package_names = Path(requirement_file).read_text().splitlines()
 
     trim_newer: Optional[datetime]
     if historical:
@@ -469,7 +475,7 @@ def deps(
     seen: Set[Tuple[str, Optional[Tuple[str, ...]], Version]] = set()
     assert python_version.count(".") == 2
     deptree = DepWalker(
-        package_name,
+        package_names,
         python_version,
         sys_platform,
         only_first=pick,
@@ -480,7 +486,7 @@ def deps(
         use_json=use_json,
     )
     # TODO record constraints on DepEdge, or put in lib to avoid this nonsense
-    fake_root = DepNode("", version=Version("0"), deps=[DepEdge(target=deptree)])
+    fake_root = DepNode("", version=Version("0"), deps=[DepEdge(target=x) for x in deptree])
     if pick:
         print(f"{deptree.name}=={deptree.version}")
     elif flat:

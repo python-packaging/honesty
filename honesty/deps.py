@@ -90,15 +90,15 @@ KeyType = Tuple[str, Version, Optional[Tuple[str, ...]]]
 class DepWalker:
     def __init__(
         self,
-        starting_package: str,
+        starting_packages: List[str],
         python_version: str,
         sys_platform: Optional[str] = None,
         only_first: bool = False,
         trim_newer: Optional[datetime] = None,
     ) -> None:
         self.nodes: Dict[KeyType, DepNode] = {}
-        self.queue: List[Tuple[Optional[DepNode], str]] = [(None, starting_package)]
-        self.root: Optional[DepNode] = None
+        self.queue: List[Tuple[Optional[DepNode], str]] = [(None, pkg) for pkg in starting_packages]
+        self.roots: List[DepNode] = []
         # TODO support unusual versions.
         t = ".".join(python_version.split(".")[:2])
         self.markers = EnvironmentMarkers(
@@ -116,7 +116,7 @@ class DepWalker:
         include_extras: bool,
         current_versions_callback: Optional[VersionCallback] = None,
         use_json: bool = True,
-    ) -> DepNode:
+    ) -> List[DepNode]:
         if current_versions_callback is None:
             current_versions_callback = _all_current_versions_unknown
         already_chosen: Dict[str, Version] = {}
@@ -194,7 +194,7 @@ class DepWalker:
                     self.nodes[key] = node
 
                 if parent is None:
-                    self.root = node
+                    self.roots.append(node)
                 else:
                     parent.deps.append(
                         DepEdge(
@@ -234,8 +234,7 @@ class DepWalker:
                         LOG.info(f"enqueue {d!r} for {node!r}")
                 node.done = True
 
-        assert self.root is not None
-        return self.root
+        return self.roots
 
     def _do_markers_match(self, marker: Marker, extras: Sequence[str] = ()) -> bool:
         env = dict(**asdict(self.markers), extras=Extras(extras))
