@@ -430,7 +430,7 @@ multiple times (with different versions).
 @click.option("--sys-platform", default="linux", help="linux,darwin,win32")
 @click.option("--historical", help="yyyy-mm-dd of a historical date to simulate")
 @click.option("--have", help="pkg==ver to assume already installed", multiple=True)
-@click.option("--use-json", is_flag=True, default=True, show_default=True)
+@click.option("--nouse-json", is_flag=True)
 @click.option(
     "-r",
     "--requirement_file",
@@ -453,7 +453,7 @@ def deps(
     package_names: List[str],
     historical: str,
     have: List[str],
-    use_json: bool,
+    nouse_json: bool,
     requirement_file: List[str],
     cached: bool,
 ) -> None:
@@ -483,7 +483,7 @@ def deps(
     def current_versions_callback(p: str) -> Optional[str]:
         for x in have:
             k, _, v = x.partition("==")
-            if canonicalize_name(k) == p:
+            if canonicalize_name(k) == canonicalize_name(p):
                 return v
         return None
 
@@ -504,7 +504,7 @@ def deps(
     ).walk(
         include_extras,
         current_versions_callback=current_versions_callback,
-        use_json=use_json,
+        use_json=not nouse_json,
         fresh_index=not cached,
     )
     # TODO record constraints on DepEdge, or put in lib to avoid this nonsense

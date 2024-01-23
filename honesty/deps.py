@@ -540,7 +540,7 @@ def print_deps(
         )
         if key in seen:
             print(
-                f"{prefix}{x.target.name}{dep_extras} (=={x.target.version}) (already listed){' ; ' + str(x.markers) if x.markers else ''}"
+                f"{prefix}{x.target.name}{dep_extras} (=={x.target.version}) (already listed){' ; ' + str(x.markers) if x.markers else ''} via {x.constraints or '*'}"
             )
         else:
             if any(x[0] == key[0] for x in seen):
