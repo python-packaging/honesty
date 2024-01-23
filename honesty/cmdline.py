@@ -14,6 +14,7 @@ from typing import Any, List, Optional, Set, Tuple
 import aiohttp.client_exceptions
 
 import click
+from packaging.utils import canonicalize_name
 
 from packaging.version import Version
 
@@ -430,7 +431,17 @@ multiple times (with different versions).
 @click.option("--historical", help="yyyy-mm-dd of a historical date to simulate")
 @click.option("--have", help="pkg==ver to assume already installed", multiple=True)
 @click.option("--use-json", is_flag=True, default=True, show_default=True)
-@click.option("-r", "--requirement_file", multiple=True, help="Requirements files, multiple allowed")
+@click.option(
+    "-r",
+    "--requirement_file",
+    multiple=True,
+    help="Requirements files, specify flag multiple times",
+)
+@click.option(
+    "--cached",
+    is_flag=True,
+    help="Don't download new index entries, only use when transitive dep names are the same as previous runs",
+)
 @click.argument("package_names", nargs=-1)
 def deps(
     include_extras: bool,
@@ -444,13 +455,21 @@ def deps(
     have: List[str],
     use_json: bool,
     requirement_file: List[str],
+    cached: bool,
 ) -> None:
     logging.basicConfig(level=logging.DEBUG if verbose else logging.WARNING)
 
+    new_have = []
+    for h in have:
+        k, _, v = h.partition("==")
+        new_have.append(f"{canonicalize_name(k)}=={v}")
+    have = new_have
+
     if requirement_file:
         package_names = [
-            str(r) for r in _iter_simple_requirements(Path(rf))
-            for rf in requirements_file
+            str(r)
+            for rf in requirement_file
+            for r in _iter_simple_requirements(Path(rf))
         ]
 
     trim_newer: Optional[datetime]
@@ -464,8 +483,7 @@ def deps(
     def current_versions_callback(p: str) -> Optional[str]:
         for x in have:
             k, _, v = x.partition("==")
-            if k == p:
-                # TODO canonicalize
+            if canonicalize_name(k) == p:
                 return v
         return None
 
@@ -487,9 +505,14 @@ def deps(
         include_extras,
         current_versions_callback=current_versions_callback,
         use_json=use_json,
+        fresh_index=not cached,
     )
     # TODO record constraints on DepEdge, or put in lib to avoid this nonsense
-    fake_root = DepNode("", version=Version("0"), deps=[DepEdge(target=x, constraints=x.constraints) for x in deptree])
+    fake_root = DepNode(
+        "",
+        version=Version("0"),
+        deps=[DepEdge(target=x, constraints=x.constraints) for x in deptree],
+    )
     if pick:
         print(f"{deptree.name}=={deptree.version}")
     elif flat:

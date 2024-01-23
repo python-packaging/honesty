@@ -97,7 +97,9 @@ class DepWalker:
         trim_newer: Optional[datetime] = None,
     ) -> None:
         self.nodes: Dict[KeyType, DepNode] = {}
-        self.queue: List[Tuple[Optional[DepNode], str]] = [(None, pkg) for pkg in starting_packages]
+        self.queue: List[Tuple[Optional[DepNode], str]] = [
+            (None, pkg) for pkg in starting_packages
+        ]
         self.roots: List[DepNode] = []
         # TODO support unusual versions.
         t = ".".join(python_version.split(".")[:2])
@@ -116,6 +118,7 @@ class DepWalker:
         include_extras: bool,
         current_versions_callback: Optional[VersionCallback] = None,
         use_json: bool = True,
+        fresh_index: bool = True,
     ) -> List[DepNode]:
         if current_versions_callback is None:
             current_versions_callback = _all_current_versions_unknown
@@ -123,7 +126,7 @@ class DepWalker:
 
         key: KeyType
 
-        with Cache(fresh_index=True) as cache:
+        with Cache(fresh_index=fresh_index) as cache:
             while self.queue:
                 parent, item = self.queue.pop(0)
                 if parent is not None:

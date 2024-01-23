@@ -1,6 +1,7 @@
 import asyncio
 import enum
 import json
+import logging
 import re
 import urllib.parse
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from packaging.version import InvalidVersion, Version
 
 from .cache import Cache
+
+LOG = logging.getLogger(__name__)
 
 # Apologies in advance, "parsing" html via regex
 CHECKSUM_RE = re.compile(
@@ -264,9 +267,9 @@ async def async_parse_index(
             try:
                 pv = Version(v)
             except InvalidVersion as e:
-                print(f"Skip version {pkg}=={v}: {e!r}")
+                LOG.debug(f"Skip invalid version {pkg}=={v}: {e!r}")
                 continue
-                
+
             if pv not in releases:
                 # TODO yanked
                 releases[pv] = PackageRelease(
@@ -291,7 +294,7 @@ async def async_parse_index(
             try:
                 pv = Version(k)
             except InvalidVersion as e:
-                print(f"Skip version {pkg}=={k}: {e!r}")
+                LOG.debug(f"Skip invalid version {pkg}=={k}: {e!r}")
                 continue
             releases[pv] = PackageRelease(
                 version=k, parsed_version=pv, files=[], yanked="default"
