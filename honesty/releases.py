@@ -261,7 +261,12 @@ async def async_parse_index(
 
         for fe in gatherer.entries:
             v = fe.version
-            pv = Version(v)
+            try:
+                pv = Version(v)
+            except InvalidVersion as e:
+                print(f"Skip version {pkg}=={v}: {e!r}")
+                continue
+                
             if pv not in releases:
                 # TODO yanked
                 releases[pv] = PackageRelease(

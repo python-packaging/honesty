@@ -23,6 +23,7 @@ from .cache import Cache
 from .checker import guess_license, has_nativemodules, is_pep517, run_checker
 from .deps import DepEdge, DepNode, DepWalker, print_deps, print_flat_deps
 from .releases import async_parse_index, FileType, Package, parse_index
+from .requirements import _iter_simple_requirements
 from .vcs import CloneAnalyzer, extract2
 
 try:
@@ -429,7 +430,7 @@ multiple times (with different versions).
 @click.option("--historical", help="yyyy-mm-dd of a historical date to simulate")
 @click.option("--have", help="pkg==ver to assume already installed", multiple=True)
 @click.option("--use-json", is_flag=True, default=True, show_default=True)
-@click.option("-r", "--requirement_file")
+@click.option("-r", "--requirement_file", multiple=True, help="Requirements files, multiple allowed")
 @click.argument("package_names", nargs=-1)
 def deps(
     include_extras: bool,
@@ -442,13 +443,15 @@ def deps(
     historical: str,
     have: List[str],
     use_json: bool,
-    requirement_file: str,
+    requirement_file: List[str],
 ) -> None:
     logging.basicConfig(level=logging.DEBUG if verbose else logging.WARNING)
 
     if requirement_file:
-        # TODO handle comments and whatnot
-        package_names = Path(requirement_file).read_text().splitlines()
+        package_names = [
+            str(r) for r in _iter_simple_requirements(Path(rf))
+            for rf in requirements_file
+        ]
 
     trim_newer: Optional[datetime]
     if historical:
@@ -486,7 +489,7 @@ def deps(
         use_json=use_json,
     )
     # TODO record constraints on DepEdge, or put in lib to avoid this nonsense
-    fake_root = DepNode("", version=Version("0"), deps=[DepEdge(target=x) for x in deptree])
+    fake_root = DepNode("", version=Version("0"), deps=[DepEdge(target=x, constraints=x.constraints) for x in deptree])
     if pick:
         print(f"{deptree.name}=={deptree.version}")
     elif flat:

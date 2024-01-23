@@ -194,6 +194,7 @@ class DepWalker:
                     self.nodes[key] = node
 
                 if parent is None:
+                    node.constraints = str(req.specifier)
                     self.roots.append(node)
                 else:
                     parent.deps.append(
