@@ -1,16 +1,21 @@
-import asyncio
 import enum
 import json
+import logging
 import re
 import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+from keke import ktrace
 
 from packaging.version import InvalidVersion, Version
 
 from .cache import Cache
+
+LOG = logging.getLogger(__name__)
 
 # Apologies in advance, "parsing" html via regex
 CHECKSUM_RE = re.compile(
@@ -236,70 +241,111 @@ class LinkGatherer(HTMLParser):
             self.entries.append(fe)
 
 
+@ktrace("pkg", "use_json")
 def parse_index(
     pkg: str, cache: Cache, strict: bool = False, use_json: bool = False
 ) -> Package:
-    loop = asyncio.get_event_loop()
-    package: Package = loop.run_until_complete(
-        async_parse_index(pkg, cache, strict, use_json)
-    )
+    package: Optional[Package]
+
+    # The input order of releases in both cases is not correct; so we sort at
+    # the end before adding to the Package.
+    if use_json:
+        # This will redirect away from canonical name if they differ
+        url = urllib.parse.urljoin(cache.json_index_url, f"../pypi/{pkg}/json")
+        package = _load_json(pkg, cache.fetch(pkg, url=url))
+    else:
+        package = _load_html(pkg, cache.fetch(pkg, url=None))
+
     return package
 
 
 async def async_parse_index(
     pkg: str, cache: Cache, strict: bool = False, use_json: bool = False
 ) -> Package:
-    package = Package(name=pkg, releases={})
-    releases: Dict[Version, PackageRelease] = {}
+    package: Optional[Package]
 
     # The input order of releases in both cases is not correct; so we sort at
     # the end before adding to the Package.
-    if not use_json:
-        with open(await cache.async_fetch(pkg, url=None)) as f:
-            gatherer = LinkGatherer(strict)
-            gatherer.feed(f.read())
-
-        for fe in gatherer.entries:
-            v = fe.version
-            pv = Version(v)
-            if pv not in releases:
-                # TODO yanked
-                releases[pv] = PackageRelease(
-                    version=v, parsed_version=pv, files=[], yanked="default"
-                )
-            releases[pv].files.append(fe)
-    else:
+    if use_json:
         # This will redirect away from canonical name if they differ
         url = urllib.parse.urljoin(cache.json_index_url, f"../pypi/{pkg}/json")
-        with open(await cache.async_fetch(pkg, url=url)) as f:
-            obj = json.loads(f.read())
+        package = _load_json(pkg, await cache.async_fetch(pkg, url=url))
+    else:
+        package = _load_html(pkg, await cache.async_fetch(pkg, url=None))
 
-        if obj.get("requires_dist") is not None:
-            package.requires = obj["requires_dist"]
+    return package
 
-        for k, release in obj["releases"].items():
-            if not release:
-                # Some pre-warehouse projects have releases with no files; don't
-                # bother because there's nothing to install, and they don't show
-                # up in the simple index either.
-                continue
-            try:
-                pv = Version(k)
-            except InvalidVersion as e:
-                print(f"Skip version {pkg}=={k}: {e!r}")
-                continue
+
+@ktrace("pkg", "path.stat().st_size")
+def _load_html(pkg: str, path: Path) -> Package:
+    package = Package(name=pkg, releases={})
+    releases: Dict[Version, PackageRelease] = {}
+    with open(path) as f:
+        gatherer = LinkGatherer(strict=True)
+        gatherer.feed(f.read())
+
+    for fe in gatherer.entries:
+        v = fe.version
+        try:
+            pv = Version(v)
+        except InvalidVersion as e:
+            LOG.debug(f"Skip version {pkg}=={v}: {e!r}")
+            continue
+        if pv not in releases:
+            # TODO yanked
             releases[pv] = PackageRelease(
-                version=k, parsed_version=pv, files=[], yanked="default"
+                version=v, parsed_version=pv, files=[], yanked="default"
             )
-            for release_file in release:
-                try:
-                    releases[pv].files.append(FileEntry.from_json(k, release_file))
-                except UnexpectedFilename:
-                    if strict:
-                        raise
-        package.home_page = obj["info"]["home_page"]
-        package.project_urls = obj["info"]["project_urls"]
+        releases[pv].files.append(fe)
 
+    package.releases = dict(sorted(releases.items()))
+    for rel in package.releases.values():
+        rel.files.sort()
+        if not rel.files or not all(f.yanked for f in rel.files):
+            rel.yanked = None
+        else:
+            # Chose first message arbitrarily
+            rel.yanked = next(f.yanked for f in rel.files)
+
+    return package
+
+
+@ktrace("pkg", "path.stat().st_size")
+def _load_json(pkg: str, path: Path, strict: bool = False) -> Package:
+    package = Package(name=pkg, releases={})
+    releases: Dict[Version, PackageRelease] = {}
+    # TODO should this stream?
+    with open(path) as f:
+        obj = json.loads(f.read())
+
+    if obj.get("requires_dist") is not None:
+        package.requires = obj["requires_dist"]
+
+    for k, release in obj["releases"].items():
+        if not release:
+            # Some pre-warehouse projects have releases with no files; don't
+            # bother because there's nothing to install, and they don't show
+            # up in the simple index either.
+            continue
+        try:
+            pv = Version(k)
+        except InvalidVersion as e:
+            LOG.debug(f"Skip version {pkg}=={k}: {e!r}")
+            continue
+
+        releases[pv] = PackageRelease(
+            version=k, parsed_version=pv, files=[], yanked="default"
+        )
+        for release_file in release:
+            try:
+                releases[pv].files.append(FileEntry.from_json(k, release_file))
+            except UnexpectedFilename:
+                if strict:
+                    raise
+    package.home_page = obj["info"]["home_page"]
+    package.project_urls = obj["info"]["project_urls"]
+
+    # TODO duplicated block
     package.releases = dict(sorted(releases.items()))
     for rel in package.releases.values():
         rel.files.sort()

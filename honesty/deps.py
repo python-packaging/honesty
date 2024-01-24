@@ -2,6 +2,7 @@ import logging
 import os
 import tarfile
 import zipfile
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
 from io import StringIO
@@ -9,9 +10,11 @@ from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tupl
 from zipfile import ZipFile
 
 import click
+from keke import kev, ktrace
 from packaging.markers import Marker
 from packaging.requirements import Requirement
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
+from packaging.utils import canonicalize_name
 from packaging.version import Version
 from pkginfo.distribution import parse as distribution_parse
 from pkginfo.wheel import Wheel
@@ -86,19 +89,21 @@ def _all_current_versions_unknown(cn: str) -> Optional[str]:
 
 KeyType = Tuple[str, Version, Optional[Tuple[str, ...]]]
 
+POOL = ThreadPoolExecutor(10)
+
 
 class DepWalker:
     def __init__(
         self,
-        starting_package: str,
         python_version: str,
         sys_platform: Optional[str] = None,
         only_first: bool = False,
         trim_newer: Optional[datetime] = None,
+        cache: Optional[Cache] = None,
+        use_json: bool = False,
     ) -> None:
         self.nodes: Dict[KeyType, DepNode] = {}
-        self.queue: List[Tuple[Optional[DepNode], str]] = [(None, starting_package)]
-        self.root: Optional[DepNode] = None
+        self.queue: List[Tuple[DepNode, str, Future[Package], Requirement]] = []
         # TODO support unusual versions.
         t = ".".join(python_version.split(".")[:2])
         self.markers = EnvironmentMarkers(
@@ -111,11 +116,40 @@ class DepWalker:
         self.only_first = only_first
         self.trim_newer = trim_newer
 
+        self.cache = cache or Cache()
+        self.use_json = use_json
+
+        self.known_conflicts: Set[str] = set()
+        self.root = DepNode(
+            "fake",
+            Version("0"),
+            [],
+            has_sdist=False,
+            has_bdist=False,
+            dep_extras=None,
+        )
+
+        # TODO lock this
+        self.futures: Dict[str, Future[Package]] = {}
+
+    @ktrace("len(reqs)")
+    def enqueue(self, reqs: List[str]) -> None:
+        for i in reqs:
+            req = Requirement(i)
+            name = canonicalize_name(req.name)
+            if name not in self.futures:
+                self.futures[name] = POOL.submit(self.fetch, name)
+            self.queue.append((self.root, name, self.futures[name], req))
+
+    @ktrace("pkg")
+    def fetch(self, pkg: str) -> Package:
+        return parse_index(pkg, self.cache, use_json=self.use_json)
+
+    @ktrace()
     def walk(
         self,
         include_extras: bool,
         current_versions_callback: Optional[VersionCallback] = None,
-        use_json: bool = True,
     ) -> DepNode:
         if current_versions_callback is None:
             current_versions_callback = _all_current_versions_unknown
@@ -123,61 +157,62 @@ class DepWalker:
 
         key: KeyType
 
-        with Cache(fresh_index=True) as cache:
+        with Cache() as cache:
             while self.queue:
-                parent, item = self.queue.pop(0)
+                parent, name, fut, req = self.queue.pop(0)
+                assert parent is not None
                 if parent is not None:
                     parent_str = parent.name
                 else:
                     parent_str = "(root)"
-                LOG.info(f"dequeue {item!r} for {parent_str}")
+                LOG.info(f"dequeue {req!r} for {parent_str}")
 
-                # This call needs to be serialized on the "main thread" because
-                # it will do asyncio behind the scenes.
-                req = Requirement(item)
                 # The python_version marker is by far the most widely-used.
                 if req.marker and not self._do_markers_match(req.marker):
                     LOG.debug(f"Skip {req.name} {req.marker}")
                     continue
 
-                (package, v) = self._pick_a_version(
-                    req,
-                    cache,
-                    already_chosen,
-                    current_versions_callback,
-                    use_json=use_json,
-                )
+                with kev(".result", req=str(req)):
+                    package = fut.result()
+
+                with kev("pick_a_version", req=str(req)):
+                    v = self._pick_a_version(
+                        req,
+                        package,
+                        already_chosen,
+                        current_versions_callback,
+                    )
                 LOG.debug(f"Chose {v}")
 
-                if package is not None and v in package.releases:
+                if v in package.releases:
                     has_sdist = any(
                         fe.file_type == FileType.SDIST
                         for fe in package.releases[v].files
                     )
                     # TODO: consider eggs or bdist_dumb as valid?  Can pip still use them?
+                    # TODO: check only for matching-arch wheels?
                     has_bdist = any(
                         fe.file_type == FileType.BDIST_WHEEL
                         for fe in package.releases[v].files
                     )
 
-                    # TODO: consider canonicalizing name
                     t: Tuple[str, ...] = tuple(sorted(req.extras))
+                    assert is_canonical(package.name)
                     key = (package.name, v, t)
                 else:
-                    # Reuse existing version
+                    # Reuse existing version, even if it doesn't exist
                     has_sdist = None
                     has_bdist = None
                     # TODO verify this is canonical
+                    assert is_canonical(req.name)
                     key = (req.name, v, None)
 
                 cur = already_chosen.get(key[0])
                 if cur is not None and cur != key[1]:
                     LOG.warning(f"Multiple versions for {key[0]}: {cur} and {key[1]}")
+                    self.known_conflicts.add(key[0])
                 already_chosen[key[0]] = key[1]
 
-                # TODO: This can be parallelized in threads; we can't just do
-                # this all as async because the partial http fetches are done
-                # through zipfile calls that aren't async-friendly.
                 node = self.nodes.get(key)
                 # req.extras is Set[Any] for some reason
                 req_extras: Set[str] = req.extras
@@ -194,7 +229,7 @@ class DepWalker:
                     self.nodes[key] = node
 
                 if parent is None:
-                    self.root = node
+                    parent = self.root
                 else:
                     parent.deps.append(
                         DepEdge(
@@ -211,8 +246,9 @@ class DepWalker:
                     break
 
                 # DO STUFF
-                deps = self._fetch_single_deps(package, v, cache)
-                LOG.info(f"deps {deps}")
+                with kev("fetch_single_deps", pkg=package.name):
+                    deps = self._fetch_single_deps(package, v, cache)
+                LOG.info(f"deps {deps} {req.extras}")
                 for d in deps:
                     dep_req = Requirement(d)
 
@@ -225,13 +261,20 @@ class DepWalker:
                     extra_str = None
                     if dep_req.marker:
                         for t in dep_req.marker._markers:
-                            if t[0] == "extra":
+                            if str(t[0]) == "extra":
                                 assert str(t[1]) == "=="
                                 extra_str = str(t[2])
 
-                    if include_extras or extra_str is None or extra_str in req.extras:
-                        self.queue.append((node, d))
-                        LOG.info(f"enqueue {d!r} for {node!r}")
+                    if extra_str is None or (
+                        include_extras and extra_str in req.extras
+                    ):
+                        name = canonicalize_name(dep_req.name)
+                        if name not in self.futures:
+                            self.futures[name] = POOL.submit(self.fetch, name)
+                        self.queue.append((node, name, self.futures[name], dep_req))
+                        LOG.info(
+                            f"enqueue {dep_req!r} for {node!r} {extra_str=} {req.extras=}"
+                        )
                 node.done = True
 
         assert self.root is not None
@@ -244,11 +287,10 @@ class DepWalker:
     def _pick_a_version(
         self,
         req: Requirement,
-        cache: Cache,
+        package: Package,
         already_chosen: Dict[str, Version],
         currently_installed_callback: VersionCallback,
-        use_json: bool = True,
-    ) -> Tuple[Package, Version]:
+    ) -> Version:
         """
         Given `attrs (==0.1.0)` returns the corresponding release.
 
@@ -259,7 +301,7 @@ class DepWalker:
         version, honesty will not use it.  (This is expected to change in a
         future release.)
         """
-        package = parse_index(req.name, cache, use_json=use_json)
+
         v = _find_compatible_version(
             package,
             req.specifier,
@@ -269,7 +311,7 @@ class DepWalker:
             currently_installed_callback,
         )
 
-        return package, v
+        return v
 
     def _fetch_single_deps(
         self, package: Package, v: Version, cache: Cache
@@ -383,11 +425,13 @@ def convert_sdist_requires(data: str) -> List[str]:
     return lst
 
 
+@ktrace("path")
 def read_metadata_wheel(path: "os.PathLike[str]") -> Sequence[str]:
     tmp: Sequence[str] = Wheel(str(path)).requires_dist
     return tmp
 
 
+@ktrace("url")
 def read_metadata_remote_wheel(url: str) -> Sequence[str]:
     # TODO: Convince mypy that SeekableHttpFile is an IO[Bytes]
     f = SeekableHttpFile(url)
@@ -471,6 +515,10 @@ def _find_compatible_version(
             f"{package.name} has no {python_version}-compatible release with constraint {specifiers}"
         )
     ac = already_chosen and already_chosen.get(package.name)
+    # This prioritizes keeping already_chosen (this walk) version, then the
+    # currently-installed (--have) version, then the most recent version, then
+    # the version itself.  We need the version to return, but it should have
+    # started in sorted order so we can sort on index.
     xform_possible: List[Tuple[bool, bool, int, Version]] = sorted(
         (p == ac, p == cur_v, i, p) for (i, p) in enumerate(possible)
     )
@@ -520,6 +568,7 @@ def print_flat_deps(
 def print_deps(
     deps: DepNode,
     seen: Set[Tuple[str, Optional[Tuple[str, ...]], Version]],
+    known_conflicts: Set[str],
     depth: int = 0,
 ) -> None:
     prefix = ". " * depth
@@ -539,7 +588,7 @@ def print_deps(
                 f"{prefix}{x.target.name}{dep_extras} (=={x.target.version}) (already listed){' ; ' + str(x.markers) if x.markers else ''}"
             )
         else:
-            if any(x[0] == key[0] for x in seen):
+            if key[0] in known_conflicts:
                 # conflicting decision
                 color = "magenta"
             else:
@@ -556,4 +605,8 @@ def print_deps(
                 + click.style(" no whl" if not x.target.has_bdist else "", fg="blue")
             )
             if x.target.deps:
-                print_deps(x.target, seen, depth + 1)
+                print_deps(x.target, seen, known_conflicts, depth + 1)
+
+
+def is_canonical(name: str) -> bool:
+    return name == canonicalize_name(name)

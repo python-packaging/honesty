@@ -176,7 +176,8 @@ def get_abc_walked() -> DepWalker:
     with patch("honesty.deps.parse_index") as parse_mock:
         parse_mock.side_effect = parse
 
-        d = DepWalker("a", "3.6.0")
+        d = DepWalker("3.6.0")
+        d.enqueue(["a"])
         d.walk(include_extras=False)
 
     return d
@@ -204,7 +205,7 @@ class DepWalkerTest(unittest.TestCase):
     def test_fetch_single_deps(
         self, r_wheel: Any, r_remote_wheel: Any, r_sdist: Any
     ) -> None:
-        _ = DepWalker("a", "3.6.0")
+        _ = DepWalker("3.6.0")
 
 
 class PrintDepsTest(unittest.TestCase):
@@ -213,8 +214,7 @@ class PrintDepsTest(unittest.TestCase):
         d = get_abc_walked()
         tree = d.root
         assert tree
-        fake_root = DepNode("", version=v1, deps=[DepEdge(target=tree)])
-        print_deps(fake_root, set())
+        print_deps(tree, set(), set())
         self.assertEqual(
             """\
 a (==1.0) via * no whl

@@ -62,30 +62,42 @@ class CacheTest(unittest.TestCase):
 
             raise NotImplementedError(url)  # pragma: no cover
 
-        with Cache(index_url="https://pypi.org/simple/", cache_dir=d) as cache:
-            with mock.patch.object(cache.session, "get", side_effect=get_side_effect):
-                rv = cache.fetch("projectname", url=None)
-                self.assertTrue(rv.exists(), rv)
-                self.assertEqual(
-                    os.path.join(d, "pr", "oj", "projectname", "index.html"), str(rv)
-                )
-                rv = cache.fetch("projectname", url=None)
-                self.assertEqual(
-                    os.path.join(d, "pr", "oj", "projectname", "index.html"), str(rv)
-                )
-                # TODO mock_get.assert_called_once()
-                with rv.open() as f:
-                    self.assertEqual("foo", f.read())
+        async def inner() -> None:
+            async with Cache(
+                index_url="https://pypi.org/simple/", cache_dir=d
+            ) as cache:
+                with mock.patch.object(
+                    cache.session, "get", side_effect=get_side_effect
+                ):
+                    rv = await cache.async_fetch("projectname", url=None)
+                    self.assertTrue(rv.exists(), rv)
+                    self.assertEqual(
+                        os.path.join(d, "pr", "oj", "projectname", "index.html"),
+                        str(rv),
+                    )
+                    rv = await cache.async_fetch("projectname", url=None)
+                    self.assertEqual(
+                        os.path.join(d, "pr", "oj", "projectname", "index.html"),
+                        str(rv),
+                    )
+                    # TODO mock_get.assert_called_once()
+                    with rv.open() as f:
+                        self.assertEqual("foo", f.read())
 
-                # Absolute path url support
-                rv = cache.fetch("projectname", url="https://example.com/other")
-                with rv.open() as f:
-                    self.assertEqual("other", f.read())
+                    # Absolute path url support
+                    rv = await cache.async_fetch(
+                        "projectname", url="https://example.com/other"
+                    )
+                    with rv.open() as f:
+                        self.assertEqual("other", f.read())
 
-                # Relative path support
-                rv = cache.fetch("projectname", url="../../a/relpath")
-                with rv.open() as f:
-                    self.assertEqual("relpath", f.read())
+                    # Relative path support
+                    rv = await cache.async_fetch("projectname", url="../../a/relpath")
+                    with rv.open() as f:
+                        self.assertEqual("relpath", f.read())
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(inner())
 
     @mock.patch("honesty.cache.os.environ.get")
     def test_cache_env_vars(self, mock_get: Any) -> None:
@@ -104,16 +116,24 @@ class CacheTest(unittest.TestCase):
                 # all non-[a-z0-9-] should have been canonicalized away already.
                 cache.fetch("pb&amp;j", url=None)
 
-    def test_aenter(self) -> None:
-        async def inner() -> None:
-            async with Cache() as cache:
-                self.assertTrue(cache)
-
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(inner())
-
     def test_is_index(self) -> None:
         with Cache() as cache:
             self.assertTrue(cache._is_index_filename(""))
             self.assertTrue(cache._is_index_filename("json"))
             self.assertFalse(cache._is_index_filename("foo-0.1.tar.gz"))
+
+    def test_sync_cache_handles_redirects(self) -> None:
+        filename = "honesty-0.2.1-py2.py3-none-any.whl"
+        with tempfile.TemporaryDirectory() as d:
+            with Cache(cache_dir=d) as cache:
+                rv = cache.fetch(
+                    "honesty",
+                    url="http://httpbin.org/redirect-to?url=https://files.pythonhosted.org/packages/52/9a/71ae70639d46380cba1d9dd4335e773714f5b2418db1522b4f4a80c4b33c/honesty-0.2.1-py2.py3-none-any.whl",
+                    filename=filename,
+                )
+                self.assertEqual(15083, Path(rv).stat().st_size)
+                # For now, etag is always repr(md5(bytes))
+                self.assertEqual(
+                    r'{"etag": "\"09a55a3170d4cec331735c9edc2e8afb\""}',
+                    Path(str(rv) + ".hdrs").read_text(),
+                )

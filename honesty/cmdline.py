@@ -9,11 +9,13 @@ import sys
 from datetime import datetime, timezone
 from enum import Enum, IntEnum
 from pathlib import Path
-from typing import Any, List, Optional, Set, Tuple
+from typing import Any, IO, List, Optional, Set, Tuple
 
 import aiohttp.client_exceptions
 
 import click
+import keke
+from packaging.utils import canonicalize_name
 
 from packaging.version import Version
 
@@ -21,7 +23,7 @@ from .api import async_download_many
 from .archive import extract_and_get_names
 from .cache import Cache
 from .checker import guess_license, has_nativemodules, is_pep517, run_checker
-from .deps import DepEdge, DepNode, DepWalker, print_deps, print_flat_deps
+from .deps import DepWalker, is_canonical, print_deps, print_flat_deps
 from .releases import async_parse_index, FileType, Package, parse_index
 from .vcs import CloneAnalyzer, extract2
 
@@ -52,9 +54,16 @@ def dataclass_default(obj: Any) -> Any:
 
 
 @click.group()
+@click.pass_context
+@click.option(
+    "--trace", type=click.File("w"), help="Write chrome trace to this filename"
+)
+@click.option("--verbose", is_flag=True, help="Verbose logging")
 @click.version_option(__version__)
-def cli() -> None:
-    pass
+def cli(ctx: click.Context, trace: Optional[IO[str]], verbose: bool) -> None:
+    if trace:
+        ctx.with_resource(keke.TraceOutput(trace))
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.WARNING)
 
 
 @cli.command(help="List available archives")
@@ -429,7 +438,7 @@ multiple times (with different versions).
 @click.option("--historical", help="yyyy-mm-dd of a historical date to simulate")
 @click.option("--have", help="pkg==ver to assume already installed", multiple=True)
 @click.option("--use-json", is_flag=True, default=True, show_default=True)
-@click.argument("package_name")
+@click.argument("reqs", nargs=-1)
 def deps(
     include_extras: bool,
     verbose: bool,
@@ -437,7 +446,7 @@ def deps(
     pick: bool,
     python_version: str,
     sys_platform: str,
-    package_name: str,
+    reqs: List[str],
     historical: str,
     have: List[str],
     use_json: bool,
@@ -453,40 +462,38 @@ def deps(
         trim_newer = None
 
     def current_versions_callback(p: str) -> Optional[str]:
+        assert is_canonical(p)
         for x in have:
             k, _, v = x.partition("==")
-            if k == p:
-                # TODO canonicalize
+            if canonicalize_name(k) == p:
+                # TODO canonicalize earlier
                 return v
         return None
 
-    # TODO platform option
     # TODO something that understands pep 517 requirements for building
     # TODO move this out of cmdline into deps.py
-    # TODO a way to specify that you already have certain versions of packages,
-    # to prefer them.
 
     seen: Set[Tuple[str, Optional[Tuple[str, ...]], Version]] = set()
     assert python_version.count(".") == 2
-    deptree = DepWalker(
-        package_name,
+    walker = DepWalker(
         python_version,
         sys_platform,
         only_first=pick,
         trim_newer=trim_newer,
-    ).walk(
+    )
+    walker.enqueue(reqs)
+    deptree = walker.walk(
         include_extras,
         current_versions_callback=current_versions_callback,
-        use_json=use_json,
     )
-    # TODO record constraints on DepEdge, or put in lib to avoid this nonsense
-    fake_root = DepNode("", version=Version("0"), deps=[DepEdge(target=deptree)])
-    if pick:
-        print(f"{deptree.name}=={deptree.version}")
-    elif flat:
-        print_flat_deps(fake_root, seen)
-    else:
-        print_deps(fake_root, seen)
+    with keke.kev("print"):
+        if pick:
+            # TODO this is completely wrong
+            print(f"{deptree.name}=={deptree.version}")
+        elif flat:
+            print_flat_deps(walker.root, seen)
+        else:
+            print_deps(walker.root, seen, walker.known_conflicts)
 
 
 @cli.command(help="Guess what git rev corresponds to a release")
