@@ -13,7 +13,9 @@ from typing import Any, Dict, Optional
 
 import aiohttp
 import appdirs
+from indexurl import get_index_url
 from keke import kev, ktrace
+from requests.adapters import HTTPAdapter
 from requests.sessions import Session
 
 
@@ -27,7 +29,6 @@ DEFAULT_CACHE_DIR = os.path.join(
     appdirs.user_cache_dir("honesty", "python-packaging"),
     "pypi",
 )
-DEFAULT_HONESTY_INDEX_URL = "https://pypi.org/simple/"
 BUFFER_SIZE = 4096 * 1024  # 4M
 
 
@@ -47,7 +48,7 @@ class Cache:
         self.cache_path = Path(cache_dir).expanduser()
 
         if not index_url:
-            index_url = os.environ.get("HONESTY_INDEX_URL", DEFAULT_HONESTY_INDEX_URL)
+            index_url = os.environ.get("HONESTY_INDEX_URL", get_index_url())
         assert isinstance(index_url, str), index_url
         if not index_url.endswith("/"):
             # in a browser, this would be a redirect; we don't know that here.
@@ -72,6 +73,8 @@ class Cache:
         self._cskwargs = cskwargs
         if sync_session is None:
             sync_session = Session()
+            sync_session.mount("http://", HTTPAdapter(pool_maxsize=100))
+            sync_session.mount("https://", HTTPAdapter(pool_maxsize=100))
         self.sync_session = sync_session
 
     @ktrace("pkg", "url")
@@ -117,8 +120,9 @@ class Cache:
                     headers = {"If-None-Match": hdrs["etag"]}
                 elif "last-modified" in hdrs:
                     headers = {"If-Modified-Since": hdrs["last-modified"]}
-                else:
-                    raise Exception(f"Unknown headers {hdrs!r}")
+                # pydepot doesn't provide this yet
+                # else:
+                #    raise Exception(f"Unknown headers {hdrs!r}")
 
         # TODO reconsider timeout
         with kev("get", have_headers=bool(headers)):

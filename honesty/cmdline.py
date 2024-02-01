@@ -25,6 +25,7 @@ from .cache import Cache
 from .checker import guess_license, has_nativemodules, is_pep517, run_checker
 from .deps import DepWalker, is_canonical, print_deps, print_flat_deps
 from .releases import async_parse_index, FileType, Package, parse_index
+from .requirements import _iter_simple_requirements
 from .vcs import CloneAnalyzer, extract2
 
 try:
@@ -432,12 +433,21 @@ multiple times (with different versions).
     help="Just pick the newest version of the package instead of showing deps",
 )
 @click.option(
-    "--python-version", default="3.7.5", help="Python version x.y.z, always 3 numbers"
+    "--python-version",
+    default=".".join(map(str, sys.version_info[:3])),
+    help="Python version x.y.z, always 3 numbers",
+    show_default=True,
 )
 @click.option("--sys-platform", default="linux", help="linux,darwin,win32")
 @click.option("--historical", help="yyyy-mm-dd of a historical date to simulate")
 @click.option("--have", help="pkg==ver to assume already installed", multiple=True)
-@click.option("--use-json", is_flag=True, default=True, show_default=True)
+@click.option("--nouse-json", is_flag=True)
+@click.option(
+    "-r",
+    "--requirement_file",
+    multiple=True,
+    help="Requirements files, specify flag multiple times",
+)
 @click.argument("reqs", nargs=-1)
 def deps(
     include_extras: bool,
@@ -449,9 +459,26 @@ def deps(
     reqs: List[str],
     historical: str,
     have: List[str],
-    use_json: bool,
+    nouse_json: bool,
+    requirement_file: List[str],
 ) -> None:
-    logging.basicConfig(level=logging.DEBUG if verbose else logging.WARNING)
+    new_have = []
+    for h in have:
+        k, _, v = h.partition("==")
+        new_have.append(f"{canonicalize_name(k)}=={v}")
+    have = new_have
+
+    # Command above is called "list" :(
+    reqs = [i for i in reqs]
+
+    if requirement_file:
+        reqs.extend(
+            [
+                str(r)
+                for rf in requirement_file
+                for r in _iter_simple_requirements(Path(rf))
+            ]
+        )
 
     trim_newer: Optional[datetime]
     if historical:
@@ -480,6 +507,7 @@ def deps(
         sys_platform,
         only_first=pick,
         trim_newer=trim_newer,
+        use_json=not nouse_json,
     )
     walker.enqueue(reqs)
     deptree = walker.walk(

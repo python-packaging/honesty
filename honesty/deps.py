@@ -89,7 +89,7 @@ def _all_current_versions_unknown(cn: str) -> Optional[str]:
 
 KeyType = Tuple[str, Version, Optional[Tuple[str, ...]]]
 
-POOL = ThreadPoolExecutor(10)
+POOL = ThreadPoolExecutor(24)
 
 
 class DepWalker:
@@ -585,7 +585,7 @@ def print_deps(
         )
         if key in seen:
             print(
-                f"{prefix}{x.target.name}{dep_extras} (=={x.target.version}) (already listed){' ; ' + str(x.markers) if x.markers else ''}"
+                f"{prefix}{x.target.name}{dep_extras} (=={x.target.version}) (already listed){' ; ' + str(x.markers) if x.markers else ''} via {x.constraints or '*'}"
             )
         else:
             if key[0] in known_conflicts:
