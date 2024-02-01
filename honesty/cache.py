@@ -2,7 +2,6 @@
 Cache-related stuff.
 """
 
-import asyncio
 import json
 import os
 import posixpath
@@ -125,7 +124,7 @@ class Cache:
                 #    raise Exception(f"Unknown headers {hdrs!r}")
 
         # TODO reconsider timeout
-        with kev("get", have_headers=bool(headers)):
+        with kev("get", have_headers=bool(headers), url=url):
             resp = self.sync_session.get(
                 url, stream=True, headers=headers, timeout=None
             )
@@ -141,7 +140,7 @@ class Cache:
             f".{os.getpid()}", prefix=(filename or "index.html"), dir=output_dir
         )
         f = os.fdopen(fd, "wb")
-        with kev("get streaming"):
+        with kev("stream_body"):
             for chunk in resp.iter_content(1024 * 1024):
                 f.write(chunk)
 

@@ -6,6 +6,8 @@ import logging
 import os.path
 import shutil
 import sys
+import threading
+import time
 from datetime import datetime, timezone
 from enum import Enum, IntEnum
 from pathlib import Path
@@ -23,7 +25,7 @@ from .api import async_download_many
 from .archive import extract_and_get_names
 from .cache import Cache
 from .checker import guess_license, has_nativemodules, is_pep517, run_checker
-from .deps import DepWalker, is_canonical, print_deps, print_flat_deps
+from .deps import DepWalker, is_canonical, POOL, print_deps, print_flat_deps
 from .releases import async_parse_index, FileType, Package, parse_index
 from .requirements import _iter_simple_requirements
 from .vcs import CloneAnalyzer, extract2
@@ -54,17 +56,47 @@ def dataclass_default(obj: Any) -> Any:
         raise TypeError(obj)
 
 
+def _stats_thread() -> None:
+    prev_ts = None
+    prev_process_time = None
+    while True:
+        ts = time.time()
+        process_time = time.process_time()
+        if prev_ts is not None:
+            keke.kcount(
+                "proc_cpu_pct",
+                100 * (process_time - prev_process_time) / (ts - prev_ts),
+            )
+
+        prev_ts = ts
+        prev_process_time = process_time
+        time.sleep(0.01)
+
+
 @click.group()
 @click.pass_context
 @click.option(
     "--trace", type=click.File("w"), help="Write chrome trace to this filename"
 )
+@click.option("--stats", is_flag=True, help="Include cpu stats in the trace")
 @click.option("--verbose", is_flag=True, help="Verbose logging")
+@click.option("-p", "--parallelism", default=24, type=int, help="Parallelism factor")
 @click.version_option(__version__)
-def cli(ctx: click.Context, trace: Optional[IO[str]], verbose: bool) -> None:
+def cli(
+    ctx: click.Context,
+    trace: Optional[IO[str]],
+    verbose: bool,
+    parallelism: int,
+    stats: bool,
+) -> None:
     if trace:
         ctx.with_resource(keke.TraceOutput(trace))
     logging.basicConfig(level=logging.DEBUG if verbose else logging.WARNING)
+    if stats:
+        threading.Thread(target=_stats_thread, daemon=True).start()
+
+    # Presumably nothing has run on it yet...
+    POOL._max_workers = parallelism
 
 
 @cli.command(help="List available archives")
