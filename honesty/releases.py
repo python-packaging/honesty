@@ -252,9 +252,9 @@ def parse_index(
     if use_json:
         # This will redirect away from canonical name if they differ
         url = urllib.parse.urljoin(cache.json_index_url, f"../pypi/{pkg}/json")
-        package = _load_json(pkg, cache.fetch(pkg, url=url))
+        package = _load_json(pkg, cache.fetch(pkg, url=url), strict=strict)
     else:
-        package = _load_html(pkg, cache.fetch(pkg, url=None))
+        package = _load_html(pkg, cache.fetch(pkg, url=None), strict=strict)
 
     return package
 
@@ -269,19 +269,19 @@ async def async_parse_index(
     if use_json:
         # This will redirect away from canonical name if they differ
         url = urllib.parse.urljoin(cache.json_index_url, f"../pypi/{pkg}/json")
-        package = _load_json(pkg, await cache.async_fetch(pkg, url=url))
+        package = _load_json(pkg, await cache.async_fetch(pkg, url=url), strict=strict)
     else:
-        package = _load_html(pkg, await cache.async_fetch(pkg, url=None))
+        package = _load_html(pkg, await cache.async_fetch(pkg, url=None), strict=strict)
 
     return package
 
 
 @ktrace("pkg", "path.stat().st_size")
-def _load_html(pkg: str, path: Path) -> Package:
+def _load_html(pkg: str, path: Path, strict: bool = True) -> Package:
     package = Package(name=pkg, releases={})
     releases: Dict[Version, PackageRelease] = {}
     with open(path) as f:
-        gatherer = LinkGatherer(strict=True)
+        gatherer = LinkGatherer(strict=strict)
         gatherer.feed(f.read())
 
     for fe in gatherer.entries:
@@ -311,7 +311,7 @@ def _load_html(pkg: str, path: Path) -> Package:
 
 
 @ktrace("pkg", "path.stat().st_size")
-def _load_json(pkg: str, path: Path, strict: bool = False) -> Package:
+def _load_json(pkg: str, path: Path, strict: bool = True) -> Package:
     package = Package(name=pkg, releases={})
     releases: Dict[Version, PackageRelease] = {}
     # TODO should this stream?

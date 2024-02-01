@@ -38,12 +38,15 @@ class FakeCache:
         self.url_to_contents = url_to_contents
         self.json_index_url = "https://pypi.org/simple/"
 
-    async def async_fetch(self, package_name: str, url: Optional[str] = None) -> Path:
+    def fetch(self, package_name: str, url: Optional[str] = None) -> Path:
         basename = posixpath.basename(url) if url else f"{package_name}_index.html"
         with open(self.path / basename, "wb") as f:
             f.write(self.url_to_contents[(package_name, url)])
 
         return self.path / basename
+
+    async def async_fetch(self, package_name: str, url: Optional[str] = None) -> Path:
+        return self.fetch(package_name, url)
 
 
 class CacheTest(unittest.TestCase):

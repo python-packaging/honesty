@@ -10,8 +10,6 @@ from packaging.version import Version
 from ..deps import (
     _find_compatible_version,
     convert_sdist_requires,
-    DepEdge,
-    DepNode,
     DepWalker,
     EnvironmentMarkers,
     print_deps,
@@ -189,15 +187,18 @@ class DepWalkerTest(unittest.TestCase):
 
         print(d.root)
         assert d.root is not None
-        self.assertEqual("a", d.root.name)
-        self.assertEqual(Version("1.0"), d.root.version)
-        self.assertEqual(True, d.root.done)
-
+        self.assertEqual("fake", d.root.name)
         self.assertEqual(1, len(d.root.deps))
-        self.assertEqual("b", d.root.deps[0].target.name)
-        self.assertEqual(1, len(d.root.deps[0].target.deps))
-        self.assertEqual("c", d.root.deps[0].target.deps[0].target.name)
-        self.assertEqual(0, len(d.root.deps[0].target.deps[0].target.deps))
+        child = d.root.deps[0].target
+        self.assertEqual("a", child.name)
+        self.assertEqual(Version("1.0"), child.version)
+        self.assertEqual(True, child.done)
+
+        self.assertEqual(1, len(child.deps))
+        self.assertEqual("b", child.deps[0].target.name)
+        self.assertEqual(1, len(child.deps[0].target.deps))
+        self.assertEqual("c", child.deps[0].target.deps[0].target.name)
+        self.assertEqual(0, len(child.deps[0].target.deps[0].target.deps))
 
     @patch("honesty.deps.read_metadata_sdist")
     @patch("honesty.deps.read_metadata_remote_wheel")
@@ -231,8 +232,7 @@ class PrintFlatDepsTest(unittest.TestCase):
         d = get_abc_walked()
         tree = d.root
         assert tree
-        fake_root = DepNode("", version=v1, deps=[DepEdge(target=tree)])
-        print_flat_deps(fake_root, set())
+        print_flat_deps(tree, set())
         self.assertEqual(
             """\
 c==1.1
