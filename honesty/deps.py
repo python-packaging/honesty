@@ -584,11 +584,18 @@ def print_deps(
             f"[{', '.join(sorted(x.target.dep_extras))}]" if x.target.dep_extras else ""
         )
         if key in seen:
-            print(
-                f"{prefix}{x.target.name}{dep_extras} (=={x.target.version}) (already listed){' ; ' + str(x.markers) if x.markers else ''} via {x.constraints or '*'}"
+            click.echo(
+                prefix
+                + click.style(
+                    x.target.name,
+                    fg="magenta"
+                    if key[0] in known_conflicts and x.constraints
+                    else None,
+                )
+                + f"{dep_extras} (=={x.target.version}) (already listed){' ; ' + str(x.markers) if x.markers else ''} via {x.constraints or '*'}"
             )
         else:
-            if key[0] in known_conflicts:
+            if key[0] in known_conflicts and x.constraints:
                 # conflicting decision
                 color = "magenta"
             else:
