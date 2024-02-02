@@ -549,7 +549,8 @@ def deps(
     with keke.kev("print"):
         if pick:
             # TODO this is completely wrong
-            print(f"{deptree.name}=={deptree.version}")
+            child = deptree.deps[0].target
+            print(f"{child.name}=={child.version}")
         elif flat:
             print_flat_deps(walker.root, seen)
         else:

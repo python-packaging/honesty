@@ -592,7 +592,8 @@ def print_deps(
                     if key[0] in known_conflicts and x.constraints
                     else None,
                 )
-                + f"{dep_extras} (=={x.target.version}) (already listed){' ; ' + str(x.markers) if x.markers else ''} via {x.constraints or '*'}"
+                + f"{dep_extras} (=={x.target.version}) (already listed){' ; ' + str(x.markers) if x.markers else ''} via "
+                + click.style(x.constraints or "*", fg="yellow")
             )
         else:
             if key[0] in known_conflicts and x.constraints:
