@@ -15,6 +15,11 @@ from packaging.version import InvalidVersion, Version
 
 from .cache import Cache
 
+try:
+    import orjson as json  # type: ignore[no-redef]  # noqa: F811
+except ImportError:
+    pass
+
 LOG = logging.getLogger(__name__)
 
 # Apologies in advance, "parsing" html via regex
