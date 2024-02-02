@@ -1,6 +1,16 @@
 honesty
 =======
 
+v0.3.0b1
+--------
+
+* Feature: deps is now waaaay faster
+* Feature: orjson for loading if you include the `honesty[orjson]` extra or
+  otherwise have it installed.
+* Feature: keke tracing (`honesty --trace=/filename --stats subcommand ...`)
+* Fix: handle nonstandard servers that give `null` upload time
+* Fix: more consistent display of divergent deps
+
 v0.3.0a5
 --------
 
