@@ -155,7 +155,9 @@ class FileEntry:
             version=version,
             requires_python=obj["requires_python"],
             size=obj["size"],
-            upload_time=parse_time(obj["upload_time_iso_8601"]),
+            upload_time=parse_time(obj["upload_time_iso_8601"])
+            if obj["upload_time_iso_8601"]
+            else None,
             yanked=obj.get("yanked", None),
         )
 
