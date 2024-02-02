@@ -1,6 +1,7 @@
 from .archive import ArchiveTest
 from .cache import CacheTest
 from .checker import CheckerTest
+from .cmdline import DownloadTest, ExtractTest, LicenseTest
 from .deps import (
     ConvertSdistRequiresTest,
     DepWalkerTest,
@@ -16,6 +17,9 @@ __all__ = [
     "ArchiveTest",
     "CacheTest",
     "CheckerTest",
+    "LicenseTest",
+    "DownloadTest",
+    "ExtractTest",
     "ConvertSdistRequiresTest",
     "EnvironmentMarkersTest",
     "FindCompatibleVersionTest",

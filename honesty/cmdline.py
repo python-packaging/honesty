@@ -658,5 +658,5 @@ def select_versions(package: Package, operator: str, selector: str) -> List[Vers
         return [pv]
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     cli(prog_name="honesty")
