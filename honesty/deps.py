@@ -334,7 +334,11 @@ class DepWalker:
         for fe in package.releases[v].files:
             if fe.file_type == FileType.BDIST_WHEEL:
                 LOG.info(f"wheel {fe.url} {fe.size}")
-                if fe.size is not None and fe.size > 20000000:
+                if fe.core_metadata is not None:
+                    return read_metadata_remote(
+                        package.name, fe.url + ".metadata", cache
+                    )
+                elif fe.size is not None and fe.size > 20000000:
                     # Gigantic wheels we'll pay the remote read penalty
                     # the 'or ()' is needed for numpy
                     return read_metadata_remote_wheel(fe.url) or ()
@@ -452,6 +456,14 @@ def read_metadata_remote_wheel(url: str) -> Sequence[str]:
     raise ValueError("No metadata")
 
 
+@ktrace("url")
+def read_metadata_remote(pkg: str, url: str, cache: Cache) -> Sequence[str]:
+    with open(cache.fetch(pkg, url)) as f:
+        metadata = distribution_parse(f)
+    reqs = metadata.get_all("Requires-Dist") or ()
+    return reqs
+
+
 def _find_compatible_version(
     package: Package,
     specifiers: SpecifierSet,
@@ -490,7 +502,8 @@ def _find_compatible_version(
 
             # LOG.debug(f"CHECK {package.name} {python_version} against {requires_python}: {k}")
             if not requires_python or python_version in requires_python:
-                LOG.debug("  include %s", k)
+                # This would be a great case for VLOG(n)
+                # LOG.debug("  include %s", k)
                 possible.append(k)
         except InvalidSpecifier as e:
             LOG.debug(f"  bad specifier: {e!r}")
@@ -522,7 +535,8 @@ def _find_compatible_version(
     xform_possible: List[Tuple[bool, bool, int, Version]] = sorted(
         (p == ac, p == cur_v, i, p) for (i, p) in enumerate(possible)
     )
-    LOG.debug(f"  possible {xform_possible!r}")
+    # TODO VLOG
+    # LOG.debug(f"  possible {xform_possible!r}")
 
     return xform_possible[-1][3]
 
