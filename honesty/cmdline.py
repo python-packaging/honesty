@@ -566,11 +566,10 @@ def deps(
 @click.option("--try-order", default="likely_tags,tags,branches", show_default=True)
 @click.option("--fresh", "-f", is_flag=True)
 @click.argument("package_names", nargs=-1)
-@wrap_async
-async def revs(
+def revs(
     verbose: bool, url_only: bool, fresh: bool, try_order: str, package_names: List[str]
 ) -> None:
-    async with Cache(fresh_index=fresh) as cache:
+    with Cache(fresh_index=fresh) as cache:
         for package_name in package_names:
             url = None
             if "@" in package_name:
@@ -578,7 +577,7 @@ async def revs(
 
             package_name, operator, version = package_name.partition("==")
             try:
-                package = await async_parse_index(package_name, cache, use_json=True)
+                package = parse_index(package_name, cache, use_json=True)
             except Exception as e:
                 print(f"{package_name}: error {e}")
                 continue
@@ -610,7 +609,7 @@ async def revs(
                     ]
                     type_suffix = "wheel"
 
-                lp = await cache.async_fetch(pkg=package_name, url=sdists[0].url)
+                lp = cache.fetch(pkg=package_name, url=sdists[0].url)
 
                 # TODO: More than just *.py...
                 archive_root, names = extract_and_get_names(
