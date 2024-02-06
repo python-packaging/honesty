@@ -91,7 +91,10 @@ def cli(
 ) -> None:
     if trace:
         ctx.with_resource(keke.TraceOutput(trace))
-    logging.basicConfig(level=logging.DEBUG if verbose else logging.WARNING)
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.WARNING,
+        format="%(asctime)-15s %(levelname)-8s %(name)s:%(lineno)s %(message)s",
+    )
     if stats:
         threading.Thread(target=_stats_thread, daemon=True).start()
 
