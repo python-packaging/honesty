@@ -20,8 +20,10 @@ class AiohttpStreamMock:
 
 
 class AiohttpResponseMock:
-    def __init__(self, content: bytes) -> None:
+    def __init__(self, content: bytes, status: int = 200) -> None:
         self.content = AiohttpStreamMock(content)
+        self.status = status
+        self.headers: Dict[str, str] = {}
 
     async def __aenter__(self) -> "AiohttpResponseMock":
         return self
@@ -54,7 +56,10 @@ class CacheTest(unittest.TestCase):
         d = tempfile.mkdtemp()
 
         def get_side_effect(
-            url: str, raise_for_status: bool = False, timeout: Any = None
+            url: str,
+            raise_for_status: bool = False,
+            timeout: Any = None,
+            headers: Any = None,
         ) -> AiohttpResponseMock:
             if url == "https://example.com/other":
                 return AiohttpResponseMock(b"other")
