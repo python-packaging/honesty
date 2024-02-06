@@ -115,6 +115,10 @@ class FileEntry:
     python_version: Optional[str] = None  # 'py2.py3' or 'source'
     upload_time: Optional[datetime] = None
     yanked: Optional[str] = None
+    # Note that empty-dict is considered true, that the metadata url will work
+    # but cannot be verified.  I cannot find a single instance of this on public
+    # pypi in 2024.  Make sure to use `present = x.core_metadata is not None`
+    core_metadata: Optional[Dict[str, str]] = None  # pep 658+714
     # TODO extract upload date?
 
     @classmethod
@@ -133,6 +137,20 @@ class FileEntry:
         basename = m.group("basename")
         checksum = m.group("checksum")
 
+        metadata_attr = d.get("data-core-metadata", d.get("data-dist-info-metadata"))
+        core_metadata: Optional[Dict[str, str]] = None
+        if metadata_attr:
+            if metadata_attr == "true":
+                core_metadata = {}
+            elif metadata_attr.count("=") == 1:
+                k, _, v = metadata_attr.partition("=")
+                core_metadata = {k: v}
+            else:
+                LOG.debug(
+                    "Ignoring odd core-metadata format for %s: %r", url, metadata_attr
+                )
+                # leave it as None
+
         return cls(
             url=url,
             basename=basename,
@@ -141,6 +159,29 @@ class FileEntry:
             version=guess_version(basename)[1],
             requires_python=d.get("data-requires-python"),
             yanked=d.get("data-yanked"),
+            core_metadata=core_metadata,
+        )
+
+    @classmethod
+    def from_691json(cls, obj: Dict[str, Any]) -> "FileEntry":
+        # This is more similar to the simple api handled w/ from_attrs
+
+        upload_time: Optional[datetime] = None
+        maybe_upload_time = obj.get("upload_time")
+        if maybe_upload_time and isinstance(maybe_upload_time, str):
+            upload_time = parse_time(maybe_upload_time)
+
+        return cls(
+            url=obj["url"],
+            basename=obj["filename"],
+            checksum=obj["hashes"],
+            file_type=guess_file_type(obj["filename"]),
+            version=guess_version(obj["filename"])[1],
+            requires_python=obj["requires-python"],
+            yanked=obj["yanked"],
+            core_metadata=obj.get("core-metadata", obj.get("data-dist-info-metadata")),
+            size=obj.get("size"),  # pep 700, now mandatory
+            upload_time=upload_time,  # pep 700, optional
         )
 
     @classmethod
